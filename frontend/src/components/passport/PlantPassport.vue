@@ -99,7 +99,11 @@
         Full description on VicFlora
         <v-icon icon="mdi-open-in-new" size="16" aria-hidden="true" />
       </a>
-      <span>Sources: VicFlora, 2022 Advisory List, VBA, ALA, AusTraits</span>
+      <span>
+        Sources: VicFlora, 2022 Advisory List, VBA, ALA, AusTraits{{
+          plant.griis_listed_introduced ? ', GRIIS' : ''
+        }}
+      </span>
     </footer>
   </section>
 </template>

@@ -25,7 +25,7 @@
   const highlights = [
     { value: '880', label: 'Monash plants you can search', icon: 'mdi-magnify' },
     { value: '325', label: 'rated on Victoria’s weed list', icon: 'mdi-clipboard-check-outline' },
-    { value: '3', label: 'official data sources', icon: 'mdi-database-outline' },
+    { value: '7', label: 'public plant datasets', icon: 'mdi-database-outline' },
   ];
 
   function focusSearch() {
@@ -174,7 +174,28 @@
                   <span>2022 Advisory List</span>
                   <InfoTip term="advisoryList" />
                 </li>
+                <li>
+                  <v-icon icon="mdi-ruler" size="18" aria-hidden="true" />
+                  <span>AusTraits</span>
+                  <InfoTip term="austraits" />
+                </li>
+                <li>
+                  <v-icon icon="mdi-earth" size="18" aria-hidden="true" />
+                  <span>Atlas of Living Australia</span>
+                  <InfoTip term="ala" />
+                </li>
+                <li>
+                  <v-icon icon="mdi-format-list-checks" size="18" aria-hidden="true" />
+                  <span>GRIIS Australia</span>
+                  <InfoTip term="griis" />
+                </li>
+                <li>
+                  <v-icon icon="mdi-camera-outline" size="18" aria-hidden="true" />
+                  <span>iNaturalist (photos)</span>
+                  <InfoTip term="inaturalist" />
+                </li>
               </ul>
+              <p class="why-sources__note">Photo identification by Pl@ntNet.</p>
             </div>
           </div>
         </div>
@@ -491,6 +512,11 @@
     margin: 0;
     padding: 0;
     list-style: none;
+  }
+  .why-sources__note {
+    margin: var(--space-sm) 0 0;
+    color: var(--color-muted);
+    font-size: 0.8125rem;
   }
   .why-sources li {
     display: inline-flex;

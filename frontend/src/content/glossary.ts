@@ -120,6 +120,22 @@ export const glossary = {
     title: 'Advisory List (2022)',
     text: 'Victoria’s official list of environmental weeds, published by the state government. Each listed plant has a risk rating.',
   },
+  austraits: {
+    title: 'AusTraits',
+    text: 'A national scientific database of Australian plant traits, such as size, lifespan, flowering time and how seeds spread.',
+  },
+  ala: {
+    title: 'Atlas of Living Australia (ALA)',
+    text: 'Australia’s national collection of plant and animal records, from museums, researchers and the public.',
+  },
+  griis: {
+    title: 'GRIIS Australia',
+    text: 'The Global Register of Introduced and Invasive Species: a list of plants introduced to Australia.',
+  },
+  inaturalist: {
+    title: 'iNaturalist',
+    text: 'A worldwide nature-sharing site. We only use photos that their owners have shared under open licences, and credit each one.',
+  },
 } satisfies Record<string, GlossaryEntry>;
 
 export type GlossaryKey = keyof typeof glossary;
