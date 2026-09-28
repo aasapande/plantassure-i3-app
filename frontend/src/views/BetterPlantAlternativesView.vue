@@ -24,6 +24,18 @@
     return Number.isSafeInteger(value) && value > 0 ? value : null;
   });
   const selectedCount = computed(() => selectedPlantIds.value.length);
+  // The original plant is always included, so users pick up to 2 alternatives.
+  const MAX_SELECTED = 2;
+  const originalName = computed(
+    () => currentPlant.value?.commonName ?? currentPlant.value?.scientificName ?? 'your plant',
+  );
+  const selectedNames = computed(() =>
+    selectedPlantIds.value
+      .map((id) => alternatives.value.find((plant) => plant.plantId === id))
+      .map((plant) => plant?.commonName ?? plant?.scientificName)
+      .filter(Boolean)
+      .join(' and '),
+  );
 
   function loadAlternatives(id: number | null) {
     selectedPlantIds.value = [];
@@ -46,20 +58,28 @@
       return;
     }
 
-    if (selectedPlantIds.value.length >= 3) return;
+    if (selectedPlantIds.value.length >= MAX_SELECTED) return;
     selectedPlantIds.value = [...selectedPlantIds.value, id];
   }
 
-  function compareSelected() {
-    if (plantId.value === null || selectedPlantIds.value.length < 2) return;
+  function openComparison(alternativeIds: number[]) {
+    if (plantId.value === null || !alternativeIds.length) return;
 
     void router.push({
       name: 'plant-comparison',
       query: {
-        plants: selectedPlantIds.value.join(','),
+        plants: [plantId.value, ...alternativeIds].join(','),
         fromPlantId: String(plantId.value),
       },
     });
+  }
+
+  function compareSelected() {
+    openComparison(selectedPlantIds.value);
+  }
+
+  function compareOne(id: number) {
+    openComparison([id]);
   }
 
   function retryAlternatives() {
@@ -118,16 +138,14 @@
               <p class="alternatives-eyebrow">ALTERNATIVES</p>
               <h2 id="alternatives-title">Consider these options</h2>
             </div>
-            <v-btn
-              v-if="selectedCount >= 2"
-              color="primary"
-              variant="outlined"
-              type="button"
-              @click="compareSelected"
-            >
-              Compare plants ({{ selectedCount }})
-            </v-btn>
           </div>
+          <p v-if="hasLoaded && alternatives.length" class="alternatives-compare-hint">
+            <v-icon icon="mdi-compare-horizontal" size="20" aria-hidden="true" />
+            <span>
+              Tap <strong>Compare side by side</strong> to see a plant next to {{ originalName }},
+              or tick <strong>Select to compare</strong> on two plants to compare all three.
+            </span>
+          </p>
 
           <v-alert v-if="plantId === null" type="warning" variant="tonal">
             We couldn’t find that plant.
@@ -168,9 +186,13 @@
               :life-history="plant.lifeHistory"
               :height="plant.height"
               :selected="selectedPlantIds.includes(plant.plantId)"
-              :compare-disabled="selectedCount >= 3 && !selectedPlantIds.includes(plant.plantId)"
+              :compare-disabled="
+                selectedCount >= MAX_SELECTED && !selectedPlantIds.includes(plant.plantId)
+              "
+              :original-name="originalName"
               @select="(id) => router.push({ name: 'plant-assessment', params: { plantId: id } })"
               @toggle-compare="toggleCompare"
+              @compare-now="compareOne"
             />
           </div>
           <AlternativesEmptyState
@@ -179,6 +201,41 @@
             @browse="browsePlants"
           />
         </section>
+
+        <div
+          v-if="selectedCount"
+          class="compare-bar"
+          role="region"
+          aria-label="Plants selected to compare"
+        >
+          <div class="compare-bar__inner">
+            <p class="compare-bar__text">
+              <v-icon icon="mdi-compare-horizontal" size="22" aria-hidden="true" />
+              <span>
+                Compare <strong>{{ originalName }}</strong> with
+                <strong>{{ selectedNames }}</strong>
+                <span v-if="selectedCount < MAX_SELECTED" class="compare-bar__more">
+                  · you can add one more
+                </span>
+              </span>
+            </p>
+            <div class="compare-bar__actions">
+              <v-btn variant="text" color="primary" type="button" @click="selectedPlantIds = []">
+                Clear
+              </v-btn>
+              <v-btn
+                color="primary"
+                variant="flat"
+                size="large"
+                append-icon="mdi-arrow-right"
+                type="button"
+                @click="compareSelected"
+              >
+                Compare now
+              </v-btn>
+            </div>
+          </div>
+        </div>
 
         <TermCards
           heading="How we pick these plants"
@@ -192,6 +249,65 @@
 </template>
 
 <style scoped>
+  .alternatives-compare-hint {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    margin: 0 0 var(--space-lg);
+    padding: var(--space-sm) var(--space-md);
+    border-radius: var(--radius-md);
+    background: var(--color-success-soft);
+    color: var(--color-ink);
+    font-size: 0.9375rem;
+  }
+
+  .alternatives-compare-hint .v-icon {
+    flex: none;
+    color: var(--color-primary);
+  }
+
+  .compare-bar {
+    position: sticky;
+    bottom: var(--space-md);
+    z-index: 5;
+    margin-top: var(--space-lg);
+  }
+
+  .compare-bar__inner {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-sm) var(--space-md);
+    padding: var(--space-md) var(--space-lg);
+    border: 2px solid var(--color-primary);
+    border-radius: var(--radius-lg);
+    background: var(--color-surface);
+    box-shadow: 0 12px 32px rgb(0 0 0 / 18%);
+  }
+
+  .compare-bar__text {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    margin: 0;
+    color: var(--color-ink);
+  }
+
+  .compare-bar__text .v-icon {
+    flex: none;
+    color: var(--color-primary);
+  }
+
+  .compare-bar__more {
+    color: var(--color-muted);
+  }
+
+  .compare-bar__actions {
+    display: flex;
+    align-items: center;
+    gap: var(--space-xs);
+  }
   .alternatives-page {
     min-height: 100vh;
     display: flex;

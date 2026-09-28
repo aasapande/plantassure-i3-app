@@ -41,10 +41,15 @@
       <div v-else class="plant-card__image-fallback" aria-hidden="true">
         <v-icon icon="mdi-image-off-outline" size="32" />
       </div>
+      <PhotoCredit
+        v-if="imageUrl && imageCredit"
+        overlay
+        :credit="imageCredit"
+        :page-url="imagePageUrl"
+      />
     </div>
 
     <div class="plant-card__body">
-      <PhotoCredit v-if="imageUrl && imageCredit" :credit="imageCredit" :page-url="imagePageUrl" />
       <h2 v-if="commonName">{{ commonName }}</h2>
       <h2 v-else>
         <em>{{ scientificName }}</em>
@@ -103,6 +108,7 @@
   }
 
   .plant-card__image {
+    position: relative;
     width: 100%;
     aspect-ratio: 4 / 3;
     overflow: hidden;

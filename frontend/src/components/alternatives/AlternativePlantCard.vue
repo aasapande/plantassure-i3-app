@@ -25,6 +25,8 @@
     height?: string | null;
     selected?: boolean;
     compareDisabled?: boolean;
+    /** Name of the plant being replaced, used in the compare button label. */
+    originalName?: string | null;
   }
 
   const props = withDefaults(defineProps<AlternativePlantCardProps>(), {
@@ -38,11 +40,13 @@
     height: null,
     selected: false,
     compareDisabled: false,
+    originalName: null,
   });
 
   const emit = defineEmits<{
     select: [plantId: number];
     toggleCompare: [plantId: number];
+    compareNow: [plantId: number];
   }>();
 
   const traits = [
@@ -59,10 +63,31 @@
       <div v-else class="alternative-plant-card__image-fallback" aria-hidden="true">
         <v-icon icon="mdi-image-off-outline" size="32" />
       </div>
+      <button
+        type="button"
+        class="alternative-plant-card__select"
+        :class="{ 'alternative-plant-card__select--on': selected }"
+        :aria-pressed="selected"
+        :disabled="compareDisabled"
+        :title="compareDisabled ? 'You can compare up to 2 alternatives at once' : undefined"
+        @click="emit('toggleCompare', plantId)"
+      >
+        <v-icon
+          :icon="selected ? 'mdi-checkbox-marked' : 'mdi-checkbox-blank-outline'"
+          size="18"
+          aria-hidden="true"
+        />
+        {{ selected ? 'Selected' : 'Select to compare' }}
+      </button>
+      <PhotoCredit
+        v-if="imageUrl && imageCredit"
+        overlay
+        :credit="imageCredit"
+        :page-url="imagePageUrl"
+      />
     </div>
 
     <div class="alternative-plant-card__body">
-      <PhotoCredit v-if="imageUrl && imageCredit" :credit="imageCredit" :page-url="imagePageUrl" />
       <div>
         <h2 v-if="commonName">{{ commonName }}</h2>
         <h2 v-else>
@@ -126,23 +151,27 @@
       <div class="alternative-plant-card__actions">
         <v-btn
           color="primary"
+          variant="flat"
+          block
+          type="button"
+          prepend-icon="mdi-compare-horizontal"
+          :aria-label="
+            originalName
+              ? `Compare ${commonName ?? scientificName} side by side with ${originalName}`
+              : undefined
+          "
+          @click="emit('compareNow', plantId)"
+        >
+          Compare side by side
+        </v-btn>
+        <v-btn
+          color="primary"
           variant="outlined"
           block
           type="button"
           @click="emit('select', plantId)"
         >
           View assessment
-        </v-btn>
-        <v-btn
-          color="primary"
-          :variant="selected ? 'flat' : 'outlined'"
-          block
-          type="button"
-          :aria-pressed="selected"
-          :disabled="compareDisabled"
-          @click="emit('toggleCompare', plantId)"
-        >
-          {{ selected ? 'Remove from compare' : 'Add to compare' }}
         </v-btn>
       </div>
     </div>
@@ -166,6 +195,7 @@
   }
 
   .alternative-plant-card__image {
+    position: relative;
     width: 100%;
     aspect-ratio: 4 / 3;
     overflow: hidden;
@@ -175,6 +205,41 @@
   .alternative-plant-card__image :deep(.v-img) {
     width: 100%;
     height: 100%;
+  }
+
+  .alternative-plant-card__select {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    z-index: 1;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    border: 1px solid var(--color-border-strong);
+    border-radius: var(--radius-pill);
+    background: var(--color-surface);
+    color: var(--color-primary);
+    font-size: 0.8125rem;
+    font-weight: 700;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgb(0 0 0 / 15%);
+  }
+
+  .alternative-plant-card__select--on {
+    border-color: var(--color-primary);
+    background: var(--color-primary);
+    color: var(--color-on-primary);
+  }
+
+  .alternative-plant-card__select:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  .alternative-plant-card__select:focus-visible {
+    outline: 3px solid var(--color-focus);
+    outline-offset: 2px;
   }
 
   .alternative-plant-card__image-fallback {
