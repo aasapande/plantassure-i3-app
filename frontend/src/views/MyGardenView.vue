@@ -8,7 +8,14 @@
   import AppHeader from '@/components/layout/AppHeader.vue';
   import { useGardenStore } from '@/stores/garden';
   import type { PassportPlant } from '@/types/passport';
-  import { isRisky } from '@/utils/passportPresentation';
+  import {
+    containmentFacts,
+    GENERAL_CONTAINMENT_STEPS,
+    generalGuidance,
+    growingFacts,
+    isRisky,
+    showsGrowingGuide,
+  } from '@/utils/passportPresentation';
 
   const route = useRoute();
   const router = useRouter();
@@ -103,8 +110,49 @@
     return RATINGS.find((rating) => rating.key === recommendation)?.tone ?? 'neutral';
   }
 
-  function openAssessment(plantId: number) {
-    void router.push({ name: 'plant-assessment', params: { plantId } });
+  // Tips open inside the garden list instead of sending users to another page.
+  const openTips = ref<number[]>([]);
+
+  function toggleTips(plantId: number) {
+    openTips.value = openTips.value.includes(plantId)
+      ? openTips.value.filter((id) => id !== plantId)
+      : [...openTips.value, plantId];
+  }
+
+  interface GardenTips {
+    kind: 'contain' | 'grow';
+    button: string;
+    facts: string[];
+    generalLabel: string;
+    general: string[];
+    note?: string;
+  }
+
+  function tipsFor(data: PassportPlant | null): GardenTips | null {
+    if (!data) return null;
+    if (isRisky(data)) {
+      return {
+        kind: 'contain',
+        button: 'How to keep it contained',
+        facts: containmentFacts(data),
+        generalLabel: 'For any risky plant',
+        general: GENERAL_CONTAINMENT_STEPS,
+      };
+    }
+    if (showsGrowingGuide(data)) {
+      const guidance = generalGuidance(data);
+      return {
+        kind: 'grow',
+        button: 'Growing tips',
+        facts: growingFacts(data),
+        generalLabel: data.plant_type
+          ? `General guidance for ${data.plant_type.toLowerCase()}s`
+          : 'General guidance',
+        general: guidance ? [guidance] : [],
+        note: 'For watering and soil advice, ask a local indigenous nursery.',
+      };
+    }
+    return null;
   }
 
   function findSwap(plantId: number) {
@@ -267,7 +315,14 @@
             :class="`garden-row--${toneFor(row.data?.recommendation)}`"
           >
             <div class="garden-row__name">
-              <h3>{{ row.commonName ?? row.data?.common_name ?? row.scientificName }}</h3>
+              <h3>
+                <RouterLink
+                  :to="{ name: 'plant-assessment', params: { plantId: row.plantId } }"
+                  :title="'Open the full plant page'"
+                >
+                  {{ row.commonName ?? row.data?.common_name ?? row.scientificName }}
+                </RouterLink>
+              </h3>
               <p>
                 <em>{{ row.scientificName }}</em>
               </p>
@@ -293,12 +348,18 @@
                 Find a swap
               </v-btn>
               <v-btn
+                v-if="tipsFor(row.data)"
                 color="primary"
                 variant="outlined"
                 size="small"
-                @click="openAssessment(row.plantId)"
+                :append-icon="
+                  openTips.includes(row.plantId) ? 'mdi-chevron-up' : 'mdi-chevron-down'
+                "
+                :aria-expanded="openTips.includes(row.plantId)"
+                :aria-controls="`tips-${row.plantId}`"
+                @click="toggleTips(row.plantId)"
               >
-                {{ row.data && isRisky(row.data) ? 'How to contain it' : 'View passport' }}
+                {{ tipsFor(row.data)?.button }}
               </v-btn>
               <v-btn
                 variant="text"
@@ -307,6 +368,26 @@
                 :aria-label="`Remove ${row.commonName ?? row.scientificName} from my garden`"
                 @click="garden.remove(row.plantId)"
               />
+            </div>
+
+            <div
+              v-if="openTips.includes(row.plantId) && tipsFor(row.data)"
+              :id="`tips-${row.plantId}`"
+              class="garden-tips"
+              :class="`garden-tips--${tipsFor(row.data)?.kind}`"
+            >
+              <ul v-if="tipsFor(row.data)?.facts.length">
+                <li v-for="fact in tipsFor(row.data)?.facts" :key="fact">{{ fact }}</li>
+              </ul>
+              <template v-if="tipsFor(row.data)?.general.length">
+                <p class="garden-tips__label">{{ tipsFor(row.data)?.generalLabel }}</p>
+                <ul>
+                  <li v-for="tip in tipsFor(row.data)?.general" :key="tip">{{ tip }}</li>
+                </ul>
+              </template>
+              <p v-if="tipsFor(row.data)?.note" class="garden-tips__label">
+                {{ tipsFor(row.data)?.note }}
+              </p>
             </div>
           </article>
         </section>
@@ -582,6 +663,44 @@
 
   .garden-row--lower {
     border-left-color: var(--color-primary);
+  }
+
+  .garden-row h3 a {
+    color: inherit;
+    text-decoration: none;
+  }
+
+  .garden-row h3 a:hover,
+  .garden-row h3 a:focus-visible {
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+
+  .garden-tips {
+    grid-column: 1 / -1;
+    padding: var(--space-md) var(--space-lg);
+    border-radius: var(--radius-md);
+    background: var(--color-success-soft);
+  }
+
+  .garden-tips--contain {
+    background: var(--color-accent-soft);
+  }
+
+  .garden-tips ul {
+    display: grid;
+    gap: 6px;
+    margin: 0;
+    padding-left: 1.2rem;
+    color: var(--color-ink-soft);
+    line-height: 1.5;
+  }
+
+  .garden-tips__label {
+    margin: var(--space-sm) 0 var(--space-xs);
+    color: var(--color-muted);
+    font-size: 0.8125rem;
+    font-weight: 700;
   }
 
   .garden-row h3 {

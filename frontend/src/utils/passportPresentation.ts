@@ -161,9 +161,8 @@ export function containmentFacts(plant: PassportPlant): string[] {
   }
   if (plant.spread.dispersal) {
     const eaten = plant.spread.dispersal.includes('eating the fruit');
-    lines.push(
-      `Seeds are spread by ${plant.spread.dispersal}${eaten ? ': pick fruit before it ripens' : ''}`,
-    );
+    const spreaders = plant.spread.dispersal.replaceAll(' / ', ' and ');
+    lines.push(`Seeds are spread by ${spreaders}${eaten ? ': pick fruit before it ripens' : ''}`);
   }
   if (plant.spread.seedbank_longevity?.includes('persistent')) {
     lines.push('Seeds can survive in soil for years: keep checking for seedlings');
