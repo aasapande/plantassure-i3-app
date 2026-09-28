@@ -126,19 +126,10 @@
             <v-progress-circular indeterminate :size="28" :width="3" color="primary" />
             <span>Loading plants…</span>
           </section>
-          <v-alert
-            v-else-if="error"
-            type="error"
-            variant="tonal"
-            title="Plants unavailable"
-          >
+          <v-alert v-else-if="error" type="error" variant="tonal" title="Plants unavailable">
             {{ error }}
             <template #append>
-              <v-btn
-                color="primary"
-                variant="outlined"
-                @click="() => catalogStore.fetchPlants()"
-              >
+              <v-btn color="primary" variant="outlined" @click="() => catalogStore.fetchPlants()">
                 Try again
               </v-btn>
             </template>
@@ -151,13 +142,14 @@
               @select="selectPlant"
             />
           </div>
-          <v-alert
-            v-else-if="hasLoaded"
-            type="info"
-            variant="tonal"
-            title="No plants found"
-          >
-            Try a different search or clear one of the filters.
+          <v-alert v-else-if="hasLoaded" type="info" variant="tonal" title="No rated plants found">
+            <p class="catalog-empty-text">
+              The catalogue only shows plants rated on Victoria’s weed list. Try a different search
+              or clear a filter.
+            </p>
+            <RouterLink :to="{ name: 'home', hash: '#plant-search-input' }">
+              Search all 880 plants, including ones without a rating
+            </RouterLink>
           </v-alert>
           <CatalogPagination
             v-if="hasLoaded && !error && totalPages > 1"
@@ -173,6 +165,10 @@
 </template>
 
 <style scoped>
+  .catalog-empty-text {
+    margin: 0 0 var(--space-xs);
+  }
+
   .catalog-page {
     min-height: 100vh;
     display: flex;
