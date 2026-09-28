@@ -14,6 +14,7 @@ use or change the team's code or servers.
 - **My Garden** — garden check-up, swap or contain each risky plant, print, and a **private link** (random UUID) to open the garden on any device
 - **Data insights** — three charts calculated in MySQL
 - **Safer swaps** — suggestions come from the pipeline's strict four-trait match and are never rated risky
+- **Photo identification** — via the [Pl@ntNet API](https://my.plantnet.org); suggestions are matched to PlantAssure's own plant records before the user can confirm one
 
 ## Privacy
 Gardens store only a random id, plant ids and a timestamp — no names, emails or
@@ -37,6 +38,16 @@ Tables: `plant`, `plant_flowering`, `plant_local_records`, `plant_evidence`,
 4. Site: `cd frontend && npx vite --port 5177` → http://localhost:5177
 
 Database credentials live in `backend/.env` (not committed).
+
+### Photo identification (Pl@ntNet)
+1. Create a free account at https://my.plantnet.org and copy your API key (free tier: 500 identifications a day).
+2. Add this line to `backend/.env`: `PLANTNET_API_KEY=your-key-here`
+3. Restart the API.
+
+Without a key, the photo page shows "Photo identification isn’t set up yet." Photos are
+re-saved without metadata (including GPS) in the browser and again on the server, are
+never stored, and are sent to Pl@ntNet, which may keep them. Attribution to Pl@ntNet is
+shown on the page, as its terms require.
 
 ## Tests
 `cd backend && .venv/bin/python -m pytest` — runs against a separate `plantassure_i3_test` database.

@@ -2,7 +2,11 @@
   import { computed, onBeforeUnmount, ref } from 'vue';
   import { useRouter } from 'vue-router';
 
-  import { IDENTIFICATION_MAX_IMAGE_SIZE_BYTES, identifyPlant } from '@/api/identification';
+  import {
+    IDENTIFICATION_MAX_IMAGE_SIZE_BYTES,
+    identificationErrorMessage,
+    identifyPlant,
+  } from '@/api/identification';
   import identifyHeroBotanical from '@/assets/images/identify-hero-botanical.png';
   import IdentificationCandidateCard from '@/components/identification/IdentificationCandidateCard.vue';
   import IdentificationNotice from '@/components/identification/IdentificationNotice.vue';
@@ -90,10 +94,10 @@
 
       identificationCandidates.value = response.matches;
       hasIdentificationResult.value = true;
-    } catch {
+    } catch (error) {
       if (requestId !== identificationRequestId.value) return;
 
-      identificationError.value = 'We couldn’t identify this plant. Please try again.';
+      identificationError.value = identificationErrorMessage(error);
     } finally {
       if (requestId === identificationRequestId.value) {
         isIdentifying.value = false;
@@ -196,7 +200,11 @@
                     {{ isIdentifying ? 'Identifying…' : 'Identify Plant' }}
                   </v-btn>
                 </div>
-                <p v-if="isIdentifying" class="identification-preview__request-status" role="status">
+                <p
+                  v-if="isIdentifying"
+                  class="identification-preview__request-status"
+                  role="status"
+                >
                   Identifying your plant photo…
                 </p>
                 <p
@@ -237,8 +245,26 @@
             </div>
           </section>
 
+          <aside class="identification-privacy" aria-labelledby="identification-privacy-title">
+            <v-icon icon="mdi-shield-lock-outline" color="primary" size="24" aria-hidden="true" />
+            <div>
+              <h2 id="identification-privacy-title">About your photo</h2>
+              <p>
+                We remove location and camera details from your photo before it leaves your device,
+                and we don’t keep it. To identify the plant, the photo is sent to
+                <a href="https://plantnet.org" target="_blank" rel="noopener">Pl@ntNet</a>, which
+                may keep photos and results to improve its service.
+              </p>
+            </div>
+          </aside>
+
           <IdentificationTips />
           <IdentificationNotice />
+
+          <p class="identification-attribution">
+            Plant identification powered by
+            <a href="https://my.plantnet.org" target="_blank" rel="noopener">Pl@ntNet</a>.
+          </p>
         </div>
       </section>
     </main>
@@ -257,6 +283,37 @@
 
   main {
     flex: 1;
+  }
+
+  .identification-privacy {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-md);
+    padding: var(--space-md) var(--space-lg);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-success-soft);
+  }
+
+  .identification-privacy h2 {
+    margin: 0 0 4px;
+    font-family: var(--font-body);
+    font-size: 1rem;
+    font-weight: 700;
+  }
+
+  .identification-privacy p,
+  .identification-attribution {
+    margin: 0;
+    color: var(--color-ink-soft);
+    font-size: 0.875rem;
+    line-height: 1.5;
+  }
+
+  .identification-privacy a,
+  .identification-attribution a {
+    color: var(--color-primary);
+    font-weight: 700;
   }
 
   .identification-hero {

@@ -31,7 +31,10 @@
     }
   }
 
-  watch(() => plants.value.map((p) => p.plantId).join(','), () => void loadPassports());
+  watch(
+    () => plants.value.map((p) => p.plantId).join(','),
+    () => void loadPassports(),
+  );
 
   onMounted(async () => {
     const sharedId = route.params.gardenId;
@@ -208,8 +211,8 @@
               saved, never your name or details.
             </p>
             <p v-else>
-              Anyone with this link can see and change this list. Changes save automatically.
-              Unused gardens are deleted after 90 days.
+              Anyone with this link can see and change this list. Changes save automatically. Unused
+              gardens are deleted after 90 days.
             </p>
           </div>
 

@@ -17,6 +17,7 @@ from fastapi import FastAPI, HTTPException, Query, Response
 from pydantic import BaseModel, Field, field_validator
 
 from db import cursor
+from identify import router as identify_router
 
 API = "/api/v1"
 MAX_GARDEN_PLANTS = 100
@@ -212,6 +213,7 @@ async def lifespan(_: FastAPI):
 
 
 app = FastAPI(title="PlantAssure Iteration 3 API", lifespan=lifespan)
+app.include_router(identify_router)
 
 
 # ---------------------------------------------------------------- plants
@@ -380,11 +382,6 @@ def alternatives(plant_id: int, limit: int = Query(6, ge=1, le=20)):
             if i in alts
         ],
     }
-
-
-@app.post(f"{API}/plants/identify")
-def identify():
-    raise HTTPException(status_code=503, detail="Photo identification is not available in this prototype.")
 
 
 @app.get(f"{API}/insights")

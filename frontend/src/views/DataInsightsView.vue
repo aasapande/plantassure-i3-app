@@ -26,7 +26,12 @@
   const flowering = computed(() => {
     const counts = data.value?.flowering.counts ?? [];
     const max = Math.max(1, ...counts);
-    return { counts, max, peak: counts.indexOf(Math.max(...counts)), total: data.value?.flowering.total ?? 0 };
+    return {
+      counts,
+      max,
+      peak: counts.indexOf(Math.max(...counts)),
+      total: data.value?.flowering.total ?? 0,
+    };
   });
 
   const origin = computed(() => {
