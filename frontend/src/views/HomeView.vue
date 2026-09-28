@@ -18,7 +18,7 @@
   const processSteps = [
     { title: 'Find your plant', description: 'Search by name or browse the catalogue.' },
     { title: 'Check its rating', description: 'See if it can spread into local bushland.' },
-    { title: 'Pick a safer option', description: 'Compare similar, lower-risk plants.' },
+    { title: 'Find an alternative', description: 'See similar plants not rated as weed risks.' },
   ];
 
   // Figures from the Iteration 2 dataset (output_i2.csv); update if the data changes.

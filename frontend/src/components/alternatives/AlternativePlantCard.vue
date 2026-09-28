@@ -45,7 +45,6 @@
     { label: 'Life history', value: props.lifeHistory, icon: 'mdi-calendar-outline' },
     { label: 'Height', value: props.height, icon: 'mdi-arrow-expand-vertical' },
   ].filter((trait) => trait.value);
-
 </script>
 
 <template>
@@ -75,7 +74,11 @@
           variant="tonal"
           :color="getEnvironmentalConcernChipColor(environmentalConcern)"
         >
-          {{ getEnvironmentalConcernLabel(environmentalConcern) }}
+          {{
+            environmentalConcern === 'NOT_ASSESSED'
+              ? 'No weed rating yet'
+              : `Rated ${getEnvironmentalConcernLabel(environmentalConcern)}`
+          }}
         </v-chip>
         <v-chip v-if="originStatus" size="small" variant="outlined" color="primary">
           {{ getOriginStatusLabel(originStatus) }}

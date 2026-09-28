@@ -21,7 +21,6 @@
     { label: 'Life history', value: props.lifeHistory, icon: 'mdi-calendar-outline' },
     { label: 'Height', value: props.height, icon: 'mdi-arrow-expand-vertical' },
   ].filter((trait) => trait.value);
-
 </script>
 
 <template>

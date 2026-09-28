@@ -104,7 +104,7 @@ export const glossary = {
   },
   whyItMatches: {
     title: 'Why it matches',
-    text: 'These plants share features with your plant, like shape and height, but have a lower environmental concern.',
+    text: 'These plants share your plant’s shape, woodiness, lifespan and height. None is rated as a weed risk: some are rated Lower on Victoria’s weed list, others have no rating yet.',
   },
 
   // Data sources

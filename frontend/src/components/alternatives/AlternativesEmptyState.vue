@@ -15,8 +15,9 @@
     switch (props.status) {
       case 'no_strict_match_found':
         return {
-          title: 'No suitable lower-concern alternatives found',
-          description: 'We couldn’t find a suitable lower-concern alternative for this plant.',
+          title: 'No suitable alternatives found',
+          description:
+            'We couldn’t find a similar plant that isn’t rated as a weed risk. Ask a local indigenous nursery for ideas.',
         };
       case 'insufficient_trait_data':
         return {
@@ -31,7 +32,7 @@
         };
       default:
         return {
-          title: 'No lower-concern alternatives found',
+          title: 'No suitable alternatives found',
           description: 'No alternatives are available for this plant at the moment.',
         };
     }

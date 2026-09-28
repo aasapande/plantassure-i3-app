@@ -93,7 +93,10 @@
         <header class="alternatives-intro">
           <p class="alternatives-eyebrow">BETTER PLANT OPTIONS</p>
           <h1>Find a better plant</h1>
-          <p>Similar plants that are less likely to spread into bushland.</p>
+          <p>
+            Similar plants that aren’t rated as weed risks. Some are rated Lower on Victoria’s weed
+            list; others haven’t been rated yet, so check the rating on each card.
+          </p>
         </header>
 
         <CurrentPlantSummary
