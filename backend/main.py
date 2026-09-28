@@ -9,12 +9,15 @@ Run:
 (--no-access-log matters: uvicorn's default access log records client IPs.)
 """
 import asyncio
+import hashlib
+import hmac
 import os
+import secrets
 import uuid
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 
-from fastapi import FastAPI, HTTPException, Query, Response
+from fastapi import FastAPI, Header, HTTPException, Query, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, field_validator
 
@@ -244,7 +247,7 @@ if _origins:
         CORSMiddleware,
         allow_origins=_origins,
         allow_methods=["GET", "POST", "PUT", "DELETE"],
-        allow_headers=["Content-Type"],
+        allow_headers=["Content-Type", "X-Garden-Edit-Token"],
     )
 
 
@@ -500,6 +503,20 @@ def parse_garden_id(garden_id: str) -> str:
     return str(parsed)
 
 
+def hash_token(token: str) -> str:
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
+def require_edit_token(cur, garden_id: str, token: str | None) -> None:
+    """Changing or deleting a garden needs its private edit key. The share
+    link alone only allows viewing. Only a SHA-256 hash of the key is stored."""
+    cur.execute("SELECT edit_token_hash FROM garden WHERE garden_id = %s", (garden_id,))
+    row = cur.fetchone()
+    stored = row["edit_token_hash"] if row else None
+    if not token or not stored or not hmac.compare_digest(hash_token(token), stored):
+        raise HTTPException(status_code=403, detail="You can view this garden but not change it.")
+
+
 def check_plants_exist(cur, ids: list[int]) -> None:
     if not ids:
         return
@@ -532,11 +549,15 @@ def load_garden(cur, garden_id: str) -> dict:
 @app.post(f"{API}/gardens", status_code=201)
 def create_garden(body: GardenIn):
     garden_id = str(uuid.uuid4())
+    edit_token = secrets.token_urlsafe(32)  # returned once, never stored in plain text
     with cursor() as cur:
         check_plants_exist(cur, body.plantIds)
-        cur.execute("INSERT INTO garden (garden_id, updated_at) VALUES (%s, %s)", (garden_id, now()))
+        cur.execute(
+            "INSERT INTO garden (garden_id, updated_at, edit_token_hash) VALUES (%s, %s, %s)",
+            (garden_id, now(), hash_token(edit_token)),
+        )
         save_plants(cur, garden_id, body.plantIds)
-        return load_garden(cur, garden_id)
+        return {**load_garden(cur, garden_id), "editToken": edit_token}
 
 
 @app.get(f"{API}/gardens/{{garden_id}}")
@@ -546,10 +567,15 @@ def get_garden(garden_id: str):
 
 
 @app.put(f"{API}/gardens/{{garden_id}}")
-def update_garden(garden_id: str, body: GardenIn):
+def update_garden(
+    garden_id: str,
+    body: GardenIn,
+    x_garden_edit_token: str | None = Header(default=None),
+):
     garden_id = parse_garden_id(garden_id)
     with cursor() as cur:
         load_garden(cur, garden_id)  # 404 if missing or expired
+        require_edit_token(cur, garden_id, x_garden_edit_token)
         check_plants_exist(cur, body.plantIds)
         cur.execute("UPDATE garden SET updated_at = %s WHERE garden_id = %s", (now(), garden_id))
         save_plants(cur, garden_id, body.plantIds)
@@ -557,9 +583,11 @@ def update_garden(garden_id: str, body: GardenIn):
 
 
 @app.delete(f"{API}/gardens/{{garden_id}}", status_code=204)
-def delete_garden(garden_id: str):
+def delete_garden(garden_id: str, x_garden_edit_token: str | None = Header(default=None)):
     garden_id = parse_garden_id(garden_id)
     with cursor() as cur:
+        load_garden(cur, garden_id)  # 404 if missing or expired
+        require_edit_token(cur, garden_id, x_garden_edit_token)
         if not cur.execute("DELETE FROM garden WHERE garden_id = %s", (garden_id,)):
             raise HTTPException(status_code=404, detail="Garden not found.")
     return Response(status_code=204)

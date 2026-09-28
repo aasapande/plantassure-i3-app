@@ -85,12 +85,13 @@ def test_garden_round_trip(client):
     created = client.post("/api/v1/gardens", json={"plantIds": [a, b, a]})
     assert created.status_code == 201
     garden = created.json()
-    assert set(garden) == {"gardenId", "plantIds", "updatedAt"}
+    assert set(garden) == {"gardenId", "plantIds", "updatedAt", "editToken"}
     assert garden["plantIds"] == [a, b]  # duplicates removed
-    gid = garden["gardenId"]
-    assert client.put(f"/api/v1/gardens/{gid}", json={"plantIds": [b]}).json()["plantIds"] == [b]
+    gid, key = garden["gardenId"], {"X-Garden-Edit-Token": garden["editToken"]}
+    assert "editToken" not in client.get(f"/api/v1/gardens/{gid}").json()  # viewers never see the key
+    assert client.put(f"/api/v1/gardens/{gid}", json={"plantIds": [b]}, headers=key).json()["plantIds"] == [b]
     assert client.get(f"/api/v1/gardens/{gid}").json()["plantIds"] == [b]
-    assert client.delete(f"/api/v1/gardens/{gid}").status_code == 204
+    assert client.delete(f"/api/v1/gardens/{gid}", headers=key).status_code == 204
     assert client.get(f"/api/v1/gardens/{gid}").status_code == 404
 
 
@@ -119,10 +120,11 @@ def test_gardens_expire_after_90_days(client, monkeypatch):
 
 
 def test_update_resets_the_90_day_clock(client, monkeypatch):
-    gid = client.post("/api/v1/gardens", json={"plantIds": [1]}).json()["gardenId"]
+    created = client.post("/api/v1/gardens", json={"plantIds": [1]}).json()
+    gid, key = created["gardenId"], {"X-Garden-Edit-Token": created["editToken"]}
     start = main.now()
     monkeypatch.setattr(main, "now", lambda: start + timedelta(days=80))
-    client.put(f"/api/v1/gardens/{gid}", json={"plantIds": [1, 2]})
+    assert client.put(f"/api/v1/gardens/{gid}", json={"plantIds": [1, 2]}, headers=key).status_code == 200
     monkeypatch.setattr(main, "now", lambda: start + timedelta(days=150))
     assert client.get(f"/api/v1/gardens/{gid}").status_code == 200
 
@@ -134,7 +136,7 @@ def test_garden_tables_hold_no_personal_data(client):
         garden_cols = [r["Field"] for r in cur.fetchall()]
         cur.execute("SHOW COLUMNS FROM garden_plant")
         plant_cols = [r["Field"] for r in cur.fetchall()]
-    assert garden_cols == ["garden_id", "updated_at"]
+    assert garden_cols == ["garden_id", "updated_at", "edit_token_hash"]
     assert plant_cols == ["garden_id", "plant_id", "position"]
 
 
@@ -174,3 +176,37 @@ def test_unrated_swaps_are_always_native(client):
         for alt in client.get(f"/api/v1/plants/{pid}/alternatives").json()["alternatives"]:
             if alt["environmentalConcern"] == "NOT_ASSESSED":
                 assert origin[alt["plantId"]] == "native"
+
+
+
+# ------------------------------------------------------------- view vs edit
+
+def test_share_link_alone_cannot_change_or_delete(client):
+    gid = client.post("/api/v1/gardens", json={"plantIds": [1]}).json()["gardenId"]
+    assert client.put(f"/api/v1/gardens/{gid}", json={"plantIds": []}).status_code == 403
+    assert client.delete(f"/api/v1/gardens/{gid}").status_code == 403
+    wrong = {"X-Garden-Edit-Token": "not-the-key"}
+    assert client.put(f"/api/v1/gardens/{gid}", json={"plantIds": []}, headers=wrong).status_code == 403
+    assert client.delete(f"/api/v1/gardens/{gid}", headers=wrong).status_code == 403
+    assert client.get(f"/api/v1/gardens/{gid}").json()["plantIds"] == [1]  # unchanged
+
+
+def test_edit_key_is_stored_only_as_a_hash(client):
+    from db import cursor
+    created = client.post("/api/v1/gardens", json={"plantIds": [1]}).json()
+    with cursor(TEST_DB) as cur:
+        cur.execute("SELECT edit_token_hash FROM garden WHERE garden_id = %s", (created["gardenId"],))
+        stored = cur.fetchone()["edit_token_hash"]
+    assert stored != created["editToken"] and stored == main.hash_token(created["editToken"])
+    assert len(created["editToken"]) >= 40  # long random key
+
+
+def test_each_garden_has_its_own_key(client):
+    a = client.post("/api/v1/gardens", json={"plantIds": [1]}).json()
+    b = client.post("/api/v1/gardens", json={"plantIds": [2]}).json()
+    other_key = {"X-Garden-Edit-Token": b["editToken"]}
+    assert client.put(f"/api/v1/gardens/{a['gardenId']}", json={"plantIds": []}, headers=other_key).status_code == 403
+
+
+def test_adding_the_edit_column_to_an_old_database_is_safe(client):
+    assert load_data.ensure_garden_edit_column(TEST_DB) is False  # already there: nothing changes

@@ -97,6 +97,7 @@ CREATE TABLE plant_alternative (
 CREATE TABLE garden (
   garden_id   CHAR(36)  NOT NULL,     -- random UUID v4, not linked to any person
   updated_at  DATETIME  NOT NULL,     -- used for the 90-day expiry
+  edit_token_hash CHAR(64) NULL,      -- SHA-256 of the private edit key (key itself never stored)
   PRIMARY KEY (garden_id),
   KEY idx_garden_updated (updated_at)
 ) ENGINE=InnoDB;

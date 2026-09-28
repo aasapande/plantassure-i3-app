@@ -139,10 +139,26 @@ def load_if_empty(database: str | None = None) -> bool:
     return True
 
 
+def ensure_garden_edit_column(database: str | None = None) -> bool:
+    """Adds the edit-key column to a garden table created before view/edit
+    links existed. Existing gardens become view-only; nothing else changes."""
+    with cursor(database) as cur:
+        cur.execute(
+            """SELECT COUNT(*) AS n FROM information_schema.COLUMNS
+               WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'garden' AND COLUMN_NAME = 'edit_token_hash'"""
+        )
+        if cur.fetchone()["n"]:
+            return False
+        cur.execute("ALTER TABLE garden ADD COLUMN edit_token_hash CHAR(64) NULL AFTER updated_at")
+    return True
+
+
 def init_database(database: str | None = None) -> None:
-    """Startup setup: full load when empty, otherwise only add missing photos."""
+    """Startup setup: full load when empty, otherwise only add what's missing
+    (photos, garden edit keys)."""
     if not load_if_empty(database):
         ensure_images(database)
+        ensure_garden_edit_column(database)
 
 
 if __name__ == "__main__":

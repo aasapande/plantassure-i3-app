@@ -20,15 +20,20 @@
   const route = useRoute();
   const router = useRouter();
   const garden = useGardenStore();
-  const { plants, gardenId, linkStatus, shareUrl } = storeToRefs(garden);
+  const { plants, gardenId, linkStatus, shareUrl, editUrl, viewing } = storeToRefs(garden);
   const passportData = ref<Record<number, PassportPlant>>({});
   const loadError = ref(false);
   const openingShared = ref(false);
-  const copied = ref(false);
+  const sharedMissing = ref(false);
+  const copied = ref<'share' | 'edit' | null>(null);
   const confirmingDelete = ref(false);
 
+  /** True when showing someone else's garden from a share link (read-only). */
+  const isViewing = computed(() => viewing.value !== null);
+  const listPlants = computed(() => viewing.value?.plants ?? plants.value);
+
   async function loadPassports() {
-    const missing = plants.value.map((p) => p.plantId).filter((id) => !passportData.value[id]);
+    const missing = listPlants.value.map((p) => p.plantId).filter((id) => !passportData.value[id]);
     if (!missing.length) return;
     try {
       passportData.value = { ...passportData.value, ...(await getPassports(missing)) };
@@ -39,19 +44,35 @@
   }
 
   watch(
-    () => plants.value.map((p) => p.plantId).join(','),
+    () => listPlants.value.map((p) => p.plantId).join(','),
     () => void loadPassports(),
   );
 
-  onMounted(async () => {
+  async function openFromRoute() {
+    sharedMissing.value = false;
     const sharedId = route.params.gardenId;
-    if (typeof sharedId === 'string' && sharedId !== gardenId.value) {
-      openingShared.value = true;
-      await garden.openShared(sharedId);
-      openingShared.value = false;
+    if (typeof sharedId !== 'string') {
+      garden.stopViewing();
+      await loadPassports();
+      return;
+    }
+    const key = new URLSearchParams(route.hash.replace(/^#/, '')).get('edit');
+    openingShared.value = true;
+    const result = await garden.open(sharedId, key);
+    openingShared.value = false;
+    sharedMissing.value = result === 'missing';
+    if (key) {
+      // Take the private key out of the address bar so it isn't shared by accident.
+      void router.replace({ name: 'shared-garden', params: { gardenId: sharedId } });
     }
     await loadPassports();
-  });
+  }
+
+  onMounted(() => void openFromRoute());
+  watch(
+    () => route.params.gardenId,
+    () => void openFromRoute(),
+  );
 
   async function getLink() {
     const url = await garden.createLink();
@@ -60,15 +81,21 @@
     }
   }
 
-  async function copyLink() {
-    if (!shareUrl.value) return;
+  async function copyLink(which: 'share' | 'edit') {
+    const url = which === 'share' ? shareUrl.value : editUrl.value;
+    if (!url) return;
     try {
-      await navigator.clipboard.writeText(shareUrl.value);
-      copied.value = true;
-      setTimeout(() => (copied.value = false), 2000);
+      await navigator.clipboard.writeText(url);
+      copied.value = which;
+      setTimeout(() => (copied.value = null), 2000);
     } catch {
-      copied.value = false;
+      copied.value = null;
     }
+  }
+
+  function copyToMine() {
+    garden.copyViewingToMine();
+    void router.replace({ name: 'my-garden' });
   }
 
   async function deleteSaved() {
@@ -86,7 +113,7 @@
   ] as const;
 
   const rows = computed(() =>
-    plants.value.map((plant) => ({
+    listPlants.value.map((plant) => ({
       ...plant,
       data: passportData.value[plant.plantId] ?? null,
     })),
@@ -171,7 +198,7 @@
     <main class="app-container garden-main">
       <header class="garden-intro">
         <p class="garden-eyebrow">MY GARDEN</p>
-        <h1>Your garden check-up</h1>
+        <h1>{{ isViewing ? 'A shared garden' : 'Your garden check-up' }}</h1>
         <p class="garden-privacy">
           <v-icon icon="mdi-lock-outline" size="16" aria-hidden="true" />
           We save only the plants on your list, never your name or personal details.
@@ -182,7 +209,24 @@
         Opening saved garden…
       </v-alert>
       <v-alert
-        v-if="linkStatus === 'expired'"
+        v-if="isViewing"
+        type="info"
+        variant="tonal"
+        class="garden-alert"
+        title="You’re viewing someone’s shared garden"
+      >
+        You can look at these plants and their tips, but you can’t change this garden.
+        <div class="garden-alert__actions">
+          <v-btn color="primary" variant="flat" size="small" @click="copyToMine">
+            Copy these plants to my garden
+          </v-btn>
+          <v-btn color="primary" variant="text" size="small" :to="{ name: 'my-garden' }">
+            Go to my garden
+          </v-btn>
+        </div>
+      </v-alert>
+      <v-alert
+        v-if="linkStatus === 'expired' || sharedMissing"
         type="warning"
         variant="tonal"
         class="garden-alert"
@@ -192,7 +236,7 @@
         below.
       </v-alert>
 
-      <section v-if="!plants.length && !openingShared" class="garden-empty">
+      <section v-if="!listPlants.length && !openingShared" class="garden-empty">
         <v-icon icon="mdi-sprout-outline" size="40" aria-hidden="true" />
         <h2>Your garden is empty</h2>
         <p>Add plants from any plant page to check your whole garden at once.</p>
@@ -206,7 +250,7 @@
         </div>
       </section>
 
-      <template v-else-if="plants.length">
+      <template v-else-if="listPlants.length">
         <v-alert v-if="loadError" type="error" variant="tonal" class="garden-alert">
           We couldn’t load plant details. Please refresh the page.
         </v-alert>
@@ -215,8 +259,8 @@
           <h2 id="summary-heading" class="visually-hidden">Garden summary</h2>
           <div class="garden-stats">
             <div class="garden-stat">
-              <strong>{{ plants.length }}</strong>
-              <span>plants in your garden</span>
+              <strong>{{ rows.length }}</strong>
+              <span>{{ isViewing ? 'plants in this garden' : 'plants in your garden' }}</span>
             </div>
             <div class="garden-stat garden-stat--concern">
               <strong>{{ riskyCount }}</strong>
@@ -248,20 +292,17 @@
           </ul>
         </section>
 
-        <section class="garden-link" aria-labelledby="link-heading">
+        <section v-if="!isViewing" class="garden-link" aria-labelledby="link-heading">
           <div class="garden-link__text">
             <h2 id="link-heading">
               <v-icon icon="mdi-link-variant" size="20" aria-hidden="true" />
-              {{ gardenId ? 'Your private garden link' : 'Save your garden' }}
+              {{ gardenId ? 'Your saved garden' : 'Save your garden' }}
             </h2>
             <p v-if="!gardenId">
               Get a private link to open this list later or on another device. Only the plants are
               saved, never your name or details.
             </p>
-            <p v-else>
-              Anyone with this link can see and change this list. Changes save automatically. Unused
-              gardens are deleted after 90 days.
-            </p>
+            <p v-else>Changes save automatically. Unused gardens are deleted after 90 days.</p>
           </div>
 
           <div v-if="!gardenId" class="garden-link__actions">
@@ -275,21 +316,57 @@
               Get a private link
             </v-btn>
           </div>
-          <div v-else class="garden-link__actions">
-            <input
-              class="garden-link__url"
-              :value="shareUrl"
-              readonly
-              aria-label="Private garden link"
-              @focus="($event.target as HTMLInputElement).select()"
-            />
-            <v-btn color="primary" variant="flat" prepend-icon="mdi-content-copy" @click="copyLink">
-              {{ copied ? 'Copied' : 'Copy link' }}
-            </v-btn>
-            <span class="garden-link__status" role="status">
-              {{ linkStatus === 'saving' ? 'Saving…' : linkStatus === 'saved' ? 'Saved' : '' }}
-            </span>
-          </div>
+          <template v-else>
+            <div class="garden-link__row">
+              <p class="garden-link__label">
+                <v-icon icon="mdi-eye-outline" size="18" aria-hidden="true" />
+                Share link · view only
+              </p>
+              <p class="garden-link__hint">
+                Anyone with this link can see your plants, but can’t change them.
+              </p>
+              <div class="garden-link__actions">
+                <input
+                  class="garden-link__url"
+                  :value="shareUrl"
+                  readonly
+                  aria-label="Share link, view only"
+                  @focus="($event.target as HTMLInputElement).select()"
+                />
+                <v-btn
+                  color="primary"
+                  variant="flat"
+                  prepend-icon="mdi-content-copy"
+                  @click="copyLink('share')"
+                >
+                  {{ copied === 'share' ? 'Copied' : 'Copy share link' }}
+                </v-btn>
+              </div>
+            </div>
+            <div class="garden-link__row garden-link__row--private">
+              <p class="garden-link__label">
+                <v-icon icon="mdi-key-outline" size="18" aria-hidden="true" />
+                Your private edit link · don’t share
+              </p>
+              <p class="garden-link__hint">
+                Use it to keep editing this garden on another device. Anyone with it can change or
+                delete your garden.
+              </p>
+              <div class="garden-link__actions">
+                <v-btn
+                  color="primary"
+                  variant="outlined"
+                  prepend-icon="mdi-content-copy"
+                  @click="copyLink('edit')"
+                >
+                  {{ copied === 'edit' ? 'Copied' : 'Copy private edit link' }}
+                </v-btn>
+                <span class="garden-link__status" role="status">
+                  {{ linkStatus === 'saving' ? 'Saving…' : linkStatus === 'saved' ? 'Saved' : '' }}
+                </span>
+              </div>
+            </div>
+          </template>
 
           <p v-if="linkStatus === 'error'" class="garden-link__error" role="alert">
             We couldn’t reach the server just now. Your list is still saved in this browser.
@@ -362,6 +439,7 @@
                 {{ tipsFor(row.data)?.button }}
               </v-btn>
               <v-btn
+                v-if="!isViewing"
                 variant="text"
                 size="small"
                 icon="mdi-close"
@@ -401,7 +479,9 @@
           >
             Print or save as PDF
           </v-btn>
-          <v-btn variant="text" color="error" @click="garden.clear()">Clear my garden</v-btn>
+          <v-btn v-if="!isViewing" variant="text" color="error" @click="garden.clear()">
+            Clear my garden
+          </v-btn>
           <RouterLink :to="{ name: 'plant-catalog' }">Add more plants</RouterLink>
         </div>
       </template>
@@ -587,6 +667,38 @@
     margin: 4px 0 0;
     color: var(--color-ink-soft);
     font-size: 0.9375rem;
+  }
+
+  .garden-alert__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-xs);
+    margin-top: var(--space-sm);
+  }
+
+  .garden-link__row {
+    display: grid;
+    gap: 4px;
+    padding-top: var(--space-sm);
+    border-top: 1px solid var(--color-border);
+  }
+
+  .garden-link__row--private .garden-link__label {
+    color: var(--color-accent);
+  }
+
+  .garden-link__label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin: 0;
+    font-weight: 700;
+  }
+
+  .garden-link__hint {
+    margin: 0 0 var(--space-xs);
+    color: var(--color-ink-soft);
+    font-size: 0.875rem;
   }
 
   .garden-link__actions {
