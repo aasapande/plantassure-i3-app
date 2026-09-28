@@ -122,7 +122,9 @@ export function getLocalOccurrencePresentation(occurrence: LocalOccurrence): Evi
       return {
         label: occurrence.recordCount ?? 'Records found',
         supporting:
-          latest === null ? 'official records in Monash' : `official records in Monash · latest ${latest}`,
+          latest === null
+            ? 'official records in Monash'
+            : `official records in Monash · latest ${latest}`,
         explanation:
           'These are documented Victorian Biodiversity Atlas and Atlas of Living Australia records of this species in the City of Monash.',
         tone: 'neutral',
@@ -235,4 +237,25 @@ export function getEnvironmentalConcernPresentation(
         icon: 'mdi-sprout-outline',
       };
   }
+}
+
+/**
+ * Swap and compare pages: team decision to show plants without a DEECA rating
+ * (only native ones are offered as swaps) as "Lower Concern", alongside plants
+ * DEECA rated "Lower". Plant pages keep the original "Not Assessed" wording.
+ */
+export function getSwapConcernLabel(concern: string | null): string {
+  return concern === 'NOT_ASSESSED' || concern === 'LOWER'
+    ? 'Lower Concern'
+    : getEnvironmentalConcernLabel(concern);
+}
+
+export function getSwapConcernTone(concern: string | null): AssessmentTone {
+  return concern === 'NOT_ASSESSED' ? 'lower' : getEnvironmentalRiskTone(concern);
+}
+
+export function getSwapConcernChipColor(
+  concern: string | null,
+): 'accent' | 'secondary' | 'primary' | undefined {
+  return concern === 'NOT_ASSESSED' ? 'primary' : getEnvironmentalConcernChipColor(concern);
 }

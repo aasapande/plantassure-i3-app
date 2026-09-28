@@ -1,13 +1,9 @@
 <script setup lang="ts">
   import PhotoCredit from '@/components/common/PhotoCredit.vue';
   import InfoTip from '@/components/common/InfoTip.vue';
-  import {
-    getEnvironmentalConcernChipColor,
-    getEnvironmentalConcernLabel,
-  } from '@/utils/assessmentPresentation';
-  import { getLegalStatusLabel } from '@/utils/legalStatusPresentation';
+  import { getSwapConcernChipColor, getSwapConcernLabel } from '@/utils/assessmentPresentation';
   import { getOriginStatusLabel } from '@/utils/originStatusPresentation';
-  import type { LegalStatus, OriginStatus } from '@/types/plant';
+  import type { OriginStatus } from '@/types/plant';
 
   interface AlternativePlantCardProps {
     plantId: number;
@@ -18,7 +14,6 @@
     imagePageUrl?: string | null;
     environmentalConcern: string | null;
     originStatus: OriginStatus | null;
-    legalStatus: LegalStatus;
     matchReasons: string[];
     growthForm?: string | null;
     lifeHistory?: string | null;
@@ -103,27 +98,14 @@
           v-if="environmentalConcern"
           size="small"
           variant="tonal"
-          :color="getEnvironmentalConcernChipColor(environmentalConcern)"
+          :color="getSwapConcernChipColor(environmentalConcern)"
         >
-          {{
-            environmentalConcern === 'NOT_ASSESSED'
-              ? 'No weed rating yet'
-              : `Rated ${getEnvironmentalConcernLabel(environmentalConcern)}`
-          }}
+          {{ getSwapConcernLabel(environmentalConcern) }}
         </v-chip>
         <v-chip v-if="originStatus" size="small" variant="outlined" color="primary">
           {{ getOriginStatusLabel(originStatus) }}
         </v-chip>
       </div>
-
-      <p class="alternative-plant-card__legal-status">
-        {{
-          legalStatus === 'UNAVAILABLE'
-            ? getLegalStatusLabel(legalStatus)
-            : `Legal status: ${getLegalStatusLabel(legalStatus)}`
-        }}
-        <InfoTip :term="legalStatus === 'UNAVAILABLE' ? 'legalUnavailable' : 'legalStatus'" />
-      </p>
 
       <section v-if="matchReasons.length" class="alternative-plant-card__matches">
         <h3>
@@ -280,12 +262,6 @@
     display: flex;
     flex-wrap: wrap;
     gap: var(--space-xs);
-  }
-
-  .alternative-plant-card__legal-status {
-    margin: 0;
-    color: var(--color-muted);
-    font-size: 0.8125rem;
   }
 
   .alternative-plant-card__matches {

@@ -2,11 +2,10 @@
   import InfoTip from '@/components/common/InfoTip.vue';
   import { originGlossaryKey, type GlossaryKey } from '@/content/glossary';
   import {
-    getEnvironmentalConcernLabel,
-    getEnvironmentalRiskTone,
+    getSwapConcernLabel,
+    getSwapConcernTone,
     getLocalOccurrencePresentation,
   } from '@/utils/assessmentPresentation';
-  import { getLegalStatusLabel } from '@/utils/legalStatusPresentation';
   import { getOriginStatusLabel } from '@/utils/originStatusPresentation';
   import type { ComparisonPlant, LocalOccurrence } from '@/types/plant';
 
@@ -20,7 +19,6 @@
     term: GlossaryKey;
   }> = [
     { key: 'environmentalConcern', label: 'Environmental concern', term: 'environmentalConcern' },
-    { key: 'legalStatus', label: 'Legal status', term: 'legalStatus' },
     { key: 'originStatus', label: 'Origin', term: 'origin' },
     { key: 'growthForm', label: 'Growth form', term: 'growthForm' },
     { key: 'lifeHistory', label: 'Life history', term: 'lifeHistory' },
@@ -49,8 +47,8 @@
   <div class="comparison-table__scroll" tabindex="0" aria-label="Plant comparison table">
     <table class="comparison-table">
       <caption class="visually-hidden">
-        Compare environmental concern, legal status, origin, form, life history, woodiness, height,
-        and local occurrence for selected plants.
+        Compare environmental concern, origin, form, life history, woodiness, height, and local
+        occurrence for selected plants.
       </caption>
       <thead>
         <tr>
@@ -70,20 +68,16 @@
             <template v-if="row.key === 'environmentalConcern'">
               <span class="comparison-table__concern">
                 <v-icon
-                  :class="`comparison-table__concern-icon--${getEnvironmentalRiskTone(plant.environmentalConcern ?? null)}`"
+                  :class="`comparison-table__concern-icon--${getSwapConcernTone(plant.environmentalConcern ?? null)}`"
                   icon="mdi-circle"
                   size="10"
                   aria-hidden="true"
                 />
-                <span>{{ getEnvironmentalConcernLabel(plant.environmentalConcern) }}</span>
+                <span>{{ getSwapConcernLabel(plant.environmentalConcern ?? null) }}</span>
               </span>
             </template>
             <template v-else-if="row.key === 'localOccurrence'">
               {{ displayLocalOccurrence(plant.localOccurrence) }}
-            </template>
-            <template v-else-if="row.key === 'legalStatus'">
-              {{ getLegalStatusLabel(plant.legalStatus) }}
-              <InfoTip v-if="plant.legalStatus === 'UNAVAILABLE'" term="legalUnavailable" />
             </template>
             <template v-else-if="row.key === 'originStatus'">
               {{ getOriginStatusLabel(plant.originStatus) }}

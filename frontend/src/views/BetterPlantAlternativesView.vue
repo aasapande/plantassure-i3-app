@@ -113,10 +113,7 @@
         <header class="alternatives-intro">
           <p class="alternatives-eyebrow">BETTER PLANT OPTIONS</p>
           <h1>Find a better plant</h1>
-          <p>
-            Similar plants that aren’t rated as weed risks. Some are rated Lower on Victoria’s weed
-            list; others haven’t been rated yet, so check the rating on each card.
-          </p>
+          <p>Similar plants with lower concern that suit the same spot in your garden.</p>
         </header>
 
         <CurrentPlantSummary
@@ -180,7 +177,6 @@
               :image-page-url="plant.imagePageUrl"
               :environmental-concern="plant.environmentalConcern"
               :origin-status="plant.originStatus"
-              :legal-status="plant.legalStatus"
               :match-reasons="plant.matchReasons"
               :growth-form="plant.growthForm"
               :life-history="plant.lifeHistory"

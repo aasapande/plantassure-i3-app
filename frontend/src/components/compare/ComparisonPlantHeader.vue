@@ -2,10 +2,7 @@
   import PhotoCredit from '@/components/common/PhotoCredit.vue';
   import { computed, ref, watch } from 'vue';
 
-  import {
-    getEnvironmentalConcernLabel,
-    getEnvironmentalRiskTone,
-  } from '@/utils/assessmentPresentation';
+  import { getSwapConcernLabel, getSwapConcernTone } from '@/utils/assessmentPresentation';
   import { getOriginStatusLabel } from '@/utils/originStatusPresentation';
   import type { ComparisonPlant } from '@/types/plant';
 
@@ -28,7 +25,7 @@
   }>();
 
   const imageFailed = ref(false);
-  const concernTone = computed(() => getEnvironmentalRiskTone(props.environmentalConcern));
+  const concernTone = computed(() => getSwapConcernTone(props.environmentalConcern));
 
   watch(
     () => props.imageUrl,
@@ -81,7 +78,7 @@
             variant="tonal"
             :class="`comparison-plant-header__concern--${concernTone}`"
           >
-            {{ getEnvironmentalConcernLabel(environmentalConcern) }}
+            {{ getSwapConcernLabel(environmentalConcern) }}
           </v-chip>
           <v-chip v-if="originStatus" size="small" variant="outlined" color="primary">
             {{ getOriginStatusLabel(originStatus) }}

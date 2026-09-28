@@ -400,11 +400,19 @@ def alternatives(plant_id: int, limit: int = Query(6, ge=1, le=20)):
     if status.startswith("not_applicable"):
         status = "not_applicable"
     with cursor() as cur:
+        # Plants without a DEECA rating are only offered as swaps if they are
+        # native to Victoria (they are shown as "Lower Concern" on swap pages).
         cur.execute(
-            "SELECT alternative_id FROM plant_alternative WHERE plant_id = %s ORDER BY rank_order LIMIT %s",
+            """SELECT a.alternative_id FROM plant_alternative a
+               JOIN plant alt ON alt.plant_id = a.alternative_id
+               WHERE a.plant_id = %s
+                 AND (alt.recommendation <> 'Not Assessed' OR alt.origin = 'native')
+               ORDER BY a.rank_order LIMIT %s""",
             (plant_id, limit),
         )
         alt_ids = [r["alternative_id"] for r in cur.fetchall()]
+    if status == "matched" and not alt_ids:
+        status = "no_strict_match_found"
     alts = fetch_plants(alt_ids)
     reasons = ["Same growth form", "Same life-history category", "Same woodiness", "Similar mature height"]
     return {

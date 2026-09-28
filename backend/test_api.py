@@ -161,3 +161,16 @@ def test_adding_photos_to_an_existing_database_is_safe(client):
     assert load_data.ensure_images(TEST_DB) is True  # table was empty: photos added
     assert load_data.ensure_images(TEST_DB) is False  # second run: nothing changes
     assert client.get(f"/api/v1/gardens/{gid}").status_code == 200  # gardens untouched
+
+
+def test_unrated_swaps_are_always_native(client):
+    from db import cursor
+    with cursor(TEST_DB) as cur:
+        cur.execute("SELECT DISTINCT plant_id FROM plant_alternative")
+        risky_ids = [r["plant_id"] for r in cur.fetchall()]
+        cur.execute("SELECT plant_id, origin FROM plant")
+        origin = {r["plant_id"]: r["origin"] for r in cur.fetchall()}
+    for pid in risky_ids:
+        for alt in client.get(f"/api/v1/plants/{pid}/alternatives").json()["alternatives"]:
+            if alt["environmentalConcern"] == "NOT_ASSESSED":
+                assert origin[alt["plantId"]] == "native"
