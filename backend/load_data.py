@@ -92,5 +92,22 @@ def load(database: str | None = None) -> dict:
     return counts
 
 
+def load_if_empty(database: str | None = None) -> bool:
+    """Loads plant data only when the plant table doesn't exist or is empty.
+    Safe to run on every start: saved gardens are never touched."""
+    with cursor(database) as cur:
+        cur.execute("SHOW TABLES LIKE 'plant'")
+        if cur.fetchone():
+            cur.execute("SELECT COUNT(*) AS n FROM plant")
+            if cur.fetchone()["n"]:
+                return False
+    load(database)
+    return True
+
+
 if __name__ == "__main__":
-    print(load(sys.argv[1] if len(sys.argv) > 1 else None))
+    args = [a for a in sys.argv[1:] if not a.startswith("--")]
+    if "--if-empty" in sys.argv:
+        print("loaded" if load_if_empty(args[0] if args else None) else "already loaded, nothing changed")
+    else:
+        print(load(args[0] if args else None))

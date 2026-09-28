@@ -9,15 +9,18 @@ Run:
 (--no-access-log matters: uvicorn's default access log records client IPs.)
 """
 import asyncio
+import os
 import uuid
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 
 from fastapi import FastAPI, HTTPException, Query, Response
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, field_validator
 
 from db import cursor
 from identify import router as identify_router
+from load_data import load_if_empty
 
 API = "/api/v1"
 MAX_GARDEN_PLANTS = 100
@@ -207,6 +210,8 @@ async def cleanup_loop() -> None:
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
+    if os.environ.get("INIT_DB_IF_EMPTY", "").lower() == "true":
+        await asyncio.to_thread(load_if_empty)  # first deploy: create tables and load plants
     task = asyncio.create_task(cleanup_loop())
     yield
     task.cancel()
@@ -214,6 +219,24 @@ async def lifespan(_: FastAPI):
 
 app = FastAPI(title="PlantAssure Iteration 3 API", lifespan=lifespan)
 app.include_router(identify_router)
+
+# When the website is hosted on a different address from the API (e.g. two
+# Render services), list the website's address(es) in FRONTEND_ORIGIN.
+_origins = [o.strip() for o in os.environ.get("FRONTEND_ORIGIN", "").split(",") if o.strip()]
+if _origins:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=_origins,
+        allow_methods=["GET", "POST", "PUT", "DELETE"],
+        allow_headers=["Content-Type"],
+    )
+
+
+@app.get(f"{API}/health")
+def health():
+    with cursor() as cur:
+        cur.execute("SELECT COUNT(*) AS n FROM plant")
+        return {"status": "ok", "plants": cur.fetchone()["n"]}
 
 
 # ---------------------------------------------------------------- plants

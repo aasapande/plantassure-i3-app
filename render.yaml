@@ -1,0 +1,48 @@
+# Render Blueprint: creates the API and the website from this repo.
+# Secrets (marked sync: false) are entered in the Render dashboard, never here.
+services:
+  - type: web
+    name: plantassure-i3-api
+    runtime: python
+    plan: free
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    # --no-access-log: don't record visitors' IP addresses
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT --no-access-log
+    healthCheckPath: /api/v1/health
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.13.5
+      - key: INIT_DB_IF_EMPTY
+        value: "true"
+      - key: DB_HOST
+        sync: false
+      - key: DB_PORT
+        sync: false
+      - key: DB_NAME
+        sync: false
+      - key: DB_USER
+        sync: false
+      - key: DB_PASSWORD
+        sync: false
+      - key: DB_SSL_CA_PEM
+        sync: false
+      - key: PLANTNET_API_KEY
+        sync: false
+      - key: FRONTEND_ORIGIN
+        sync: false
+
+  - type: web
+    name: plantassure-i3-web
+    runtime: static
+    rootDir: frontend
+    buildCommand: npm install -g pnpm@10.34.5 && pnpm install --frozen-lockfile && pnpm run build-only
+    staticPublishPath: dist
+    routes:
+      # Single-page app: send every path (e.g. /garden/<id>) to index.html
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      - key: VITE_API_BASE_URL
+        sync: false

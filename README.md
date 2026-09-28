@@ -25,6 +25,9 @@ runs with `--no-access-log` so client IP addresses are not logged.
 Tables: `plant`, `plant_flowering`, `plant_local_records`, `plant_evidence`,
 `plant_alternative`, `garden`, `garden_plant` — see `backend/db/schema.sql`.
 
+## Deploy
+See [DEPLOY.md](DEPLOY.md) — Render (website + API) and Aiven (MySQL).
+
 ## Run locally
 1. Start MySQL (private instance, port 3307):
    `/opt/anaconda3/bin/mysqld --defaults-file=backend/db/my.cnf`

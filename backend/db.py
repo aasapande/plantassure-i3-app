@@ -1,12 +1,29 @@
-"""MySQL connection settings, read from backend/.env (never hard-coded)."""
+"""MySQL connection settings, read from environment variables (backend/.env
+locally, the hosting provider's settings when deployed). Never hard-coded.
+
+For a hosted database that requires SSL (e.g. Aiven), set DB_SSL_CA_PEM to the
+provider's CA certificate text; the connection is then encrypted and verified.
+"""
 import os
+import tempfile
 from contextlib import contextmanager
+from functools import lru_cache
 from pathlib import Path
 
 import pymysql
 from dotenv import load_dotenv
 
 load_dotenv(Path(__file__).with_name(".env"))
+
+
+@lru_cache(maxsize=1)
+def ssl_options() -> dict | None:
+    pem = os.environ.get("DB_SSL_CA_PEM", "").strip()
+    if not pem:
+        return None
+    ca_file = Path(tempfile.gettempdir()) / "plantassure-db-ca.pem"
+    ca_file.write_text(pem.replace("\\n", "\n") + "\n", encoding="utf-8")
+    return {"ca": str(ca_file)}
 
 
 def connect(database: str | None = None) -> pymysql.connections.Connection:
@@ -19,6 +36,8 @@ def connect(database: str | None = None) -> pymysql.connections.Connection:
         charset="utf8mb4",
         cursorclass=pymysql.cursors.DictCursor,
         autocommit=False,
+        ssl=ssl_options(),
+        connect_timeout=15,
     )
 
 
