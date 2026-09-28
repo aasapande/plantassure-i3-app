@@ -1,0 +1,43 @@
+PlantAssure Iteration 3 -- data validation report
+====================================================
+Plants processed: 880
+
+Recommendation distribution:
+  Not Assessed: 555
+  Reconsider Planting: 150
+  Use Caution: 143
+  Lower Concern: 32
+
+Common names:
+  VicFlora only (Iteration 2): 617 / 880 (70%)
+  After fill (Iteration 3):    844 / 880 (96%)
+    from VicFlora: 617
+    from VBA: 133
+    from ALA: 82
+    from DEECA Advisory List: 12
+
+Coverage (all plants / risky plants):
+  Flowering months     755 / 880 (86%)    232 / 293 (79%)
+  Resprouting          736 / 880 (84%)    215 / 293 (73%)
+  Vegetative spread    642 / 880 (73%)    119 / 293 (41%)
+  Seed dispersal       622 / 880 (71%)    97 / 293 (33%)
+  Seed bank longevity  639 / 880 (73%)    117 / 293 (40%)
+  Wet-soil tolerance   392 / 880 (45%)    18 / 293 (6%)
+  Plant type group     836 / 880 (95%)    288 / 293 (98%)
+
+Evidence strength (how much verified information exists, not risk):
+  Moderate: 581
+  Strong: 258
+  Limited: 41
+
+Evidence strength for Not Assessed plants:
+  Moderate: 516
+  Limited: 39
+
+Chart check -- risky plants in flower per month:
+  Jan 130  Feb 105  Mar 61  Apr 58  May 72  Jun 74  Jul 78  Aug 105  Sep 173  Oct 178  Nov 169  Dec 137
+
+Needs manual review (see review_*.csv):
+  Split flowering patterns (3+ separate blocks): 6
+  Wet-soil value only 'not_applicable':          140
+  Still no common name:                          36

@@ -1,0 +1,198 @@
+<script setup lang="ts">
+  import { RouterLink } from 'vue-router';
+
+  import type { PlantSearchResult } from '@/types/plant';
+
+  defineProps<{
+    results: PlantSearchResult[];
+    isLoading: boolean;
+    error: string | null;
+  }>();
+
+  defineEmits<{
+    select: [result: PlantSearchResult];
+    retry: [];
+  }>();
+</script>
+
+<template>
+  <section class="plant-results" aria-labelledby="plant-results-title">
+    <h2 id="plant-results-title">Search results</h2>
+
+    <div v-if="isLoading" class="plant-results__status" role="status" aria-live="polite">
+      <v-progress-circular
+        indeterminate
+        :size="18"
+        :width="2"
+        color="primary"
+        aria-hidden="true"
+      />
+      <span>Searching plants…</span>
+    </div>
+
+    <div v-else-if="error" class="plant-results__error" role="alert">
+      <span>{{ error }}</span>
+      <v-btn
+        class="plant-btn--secondary"
+        color="primary"
+        variant="outlined"
+        height="44"
+        type="button"
+        @click="$emit('retry')"
+      >
+        Try again
+      </v-btn>
+    </div>
+
+    <p v-else-if="results.length === 0" class="plant-results__status" role="status">
+      No matches found
+    </p>
+
+    <template v-else-if="results.length > 1">
+      <p class="plant-results__summary">
+        {{ results.length }} matches found. Select a plant to view its assessment.
+      </p>
+      <ul class="plant-results__list">
+        <li v-for="result in results" :key="result.plantId">
+          <RouterLink
+            class="plant-results__link"
+            :to="{ name: 'plant-assessment', params: { plantId: result.plantId } }"
+            @click.prevent="$emit('select', result)"
+          >
+            <span class="plant-results__identity">
+              <span v-if="result.commonName" class="plant-results__common-name">
+                {{ result.commonName }}
+              </span>
+              <em>{{ result.scientificName }}</em>
+            </span>
+            <span class="plant-results__action">
+              View assessment
+              <v-icon icon="mdi-arrow-right" size="18" aria-hidden="true" />
+            </span>
+          </RouterLink>
+        </li>
+      </ul>
+    </template>
+  </section>
+</template>
+
+<style scoped>
+  .plant-results {
+    position: absolute;
+    top: calc(100% + var(--space-xs));
+    right: 0;
+    left: 0;
+    z-index: 4;
+    max-height: min(420px, calc(100vh - 160px));
+    margin: 0;
+    overflow-x: hidden;
+    overflow-y: auto;
+    padding: var(--space-md);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+  }
+
+  .plant-results h2 {
+    margin: 0 0 var(--space-sm);
+    font-family: var(--font-body);
+    font-size: 1rem;
+    font-weight: 600;
+  }
+
+  .plant-results__status,
+  .plant-results__error {
+    min-height: 48px;
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    margin: 0;
+    color: var(--color-ink-soft);
+    font-size: 0.875rem;
+  }
+
+  .plant-results__error {
+    justify-content: space-between;
+    padding: var(--space-sm);
+    background: var(--color-error-soft);
+    border-radius: var(--radius-sm);
+  }
+
+  .plant-results__error .v-btn {
+    flex: 0 0 auto;
+    padding-inline: var(--space-md);
+  }
+
+  .plant-results__summary {
+    margin: 0 0 var(--space-sm);
+    color: var(--color-ink-soft);
+    font-size: 0.8125rem;
+  }
+
+  .plant-results__list {
+    display: grid;
+    gap: var(--space-xs);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .plant-results__link {
+    min-height: 64px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-md);
+    padding: var(--space-sm) var(--space-md);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    color: var(--color-ink);
+    text-decoration: none;
+    cursor: pointer;
+  }
+
+  .plant-results__link:hover {
+    background: var(--color-surface-muted);
+    border-color: var(--color-border-strong);
+  }
+
+  .plant-results__identity {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    overflow-wrap: anywhere;
+  }
+
+  .plant-results__common-name {
+    font-size: 0.9375rem;
+    font-weight: 600;
+  }
+
+  .plant-results__identity em {
+    color: var(--color-ink-soft);
+    font-size: 0.8125rem;
+  }
+
+  .plant-results__action {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-xs);
+    flex: 0 0 auto;
+    color: var(--color-primary);
+    font-size: 0.8125rem;
+    font-weight: 600;
+  }
+
+  @media (max-width: 479px) {
+    .plant-results__error,
+    .plant-results__link {
+      align-items: flex-start;
+      flex-direction: column;
+    }
+
+    .plant-results__action {
+      min-height: 44px;
+      align-items: center;
+    }
+  }
+</style>

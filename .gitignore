@@ -1,0 +1,15 @@
+# secrets and local database
+backend/.env
+backend/db/data/
+backend/db/*.sock*
+backend/db/*.pid
+backend/db/*.err
+# environments and builds
+backend/.venv/
+**/__pycache__/
+.pytest_cache/
+frontend/node_modules/
+frontend/dist/
+frontend/.eslintcache
+*.tsbuildinfo
+.DS_Store
