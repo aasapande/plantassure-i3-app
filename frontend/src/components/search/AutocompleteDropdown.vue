@@ -19,13 +19,7 @@
 <template>
   <div :id="id" class="autocomplete-dropdown" role="listbox" aria-label="Plant suggestions">
     <div v-if="isLoading" class="autocomplete-dropdown__status" role="status">
-      <v-progress-circular
-        indeterminate
-        :size="18"
-        :width="2"
-        color="primary"
-        aria-hidden="true"
-      />
+      <v-progress-circular indeterminate :size="18" :width="2" color="primary" aria-hidden="true" />
       <span>Loading plant results…</span>
     </div>
 

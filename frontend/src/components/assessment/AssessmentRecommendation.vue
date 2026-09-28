@@ -40,9 +40,7 @@
       <p class="assessment-guidance__explanation">{{ presentation.guidance }}</p>
 
       <v-btn
-        v-if="
-          recommendation === 'RECONSIDER_PLANTING' || recommendation === 'USE_CAUTION'
-        "
+        v-if="recommendation === 'RECONSIDER_PLANTING' || recommendation === 'USE_CAUTION'"
         color="primary"
         variant="flat"
         append-icon="mdi-arrow-right"

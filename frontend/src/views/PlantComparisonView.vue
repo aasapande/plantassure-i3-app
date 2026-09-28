@@ -90,9 +90,13 @@
     }
   }
 
-  watch(selectedPlantIds, () => {
-    void loadComparison();
-  }, { immediate: true });
+  watch(
+    selectedPlantIds,
+    () => {
+      void loadComparison();
+    },
+    { immediate: true },
+  );
 
   const alternativesRoute = computed(() => {
     const value = route.query.fromPlantId;
@@ -145,7 +149,11 @@
         <header class="comparison-page__intro">
           <p class="comparison-page__eyebrow">COMPARE PLANTS</p>
           <h1>Compare your options</h1>
-          <p>See your options side by side. Tap <v-icon icon="mdi-information-outline" size="16" aria-label="the info icon" /> to learn what a term means.</p>
+          <p>
+            See your options side by side. Tap
+            <v-icon icon="mdi-information-outline" size="16" aria-label="the info icon" /> to learn
+            what a term means.
+          </p>
         </header>
 
         <section
@@ -207,6 +215,8 @@
               :common-name="plant.commonName ?? null"
               :scientific-name="plant.scientificName"
               :image-url="plant.imageUrl ?? null"
+              :image-credit="plant.imageCredit ?? null"
+              :image-page-url="plant.imagePageUrl ?? null"
               :environmental-concern="plant.environmentalConcern ?? null"
               :origin-status="plant.originStatus ?? null"
               @select="viewAssessment"
@@ -215,12 +225,7 @@
 
           <ComparisonTable :plants="comparisonPlants" />
 
-          <v-sheet
-            class="comparison-page__occurrence-note"
-            border
-            rounded="md"
-            color="surface"
-          >
+          <v-sheet class="comparison-page__occurrence-note" border rounded="md" color="surface">
             <v-icon icon="mdi-information-outline" size="24" color="primary" aria-hidden="true" />
             <div>
               <h2>About “Seen locally”</h2>

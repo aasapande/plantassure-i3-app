@@ -136,3 +136,28 @@ def test_garden_tables_hold_no_personal_data(client):
         plant_cols = [r["Field"] for r in cur.fetchall()]
     assert garden_cols == ["garden_id", "updated_at"]
     assert plant_cols == ["garden_id", "plant_id", "position"]
+
+
+# ------------------------------------------------------------- photos
+
+def test_photos_come_with_a_credit(client):
+    body = client.get(f"/api/v1/plants/{plant_id(client, GORSE)}/assessment").json()
+    plant = body["plant"]
+    assert plant["imageUrl"].startswith("https://inaturalist-open-data.s3.amazonaws.com/")
+    assert plant["imageCredit"].startswith("Photo: ") and "via iNaturalist" in plant["imageCredit"]
+
+
+def test_catalogue_items_include_photos(client):
+    items = client.get("/api/v1/plants", params={"size": 50}).json()["items"]
+    with_photo = [i for i in items if i["imageUrl"]]
+    assert with_photo and all(i["imageCredit"] for i in with_photo)
+
+
+def test_adding_photos_to_an_existing_database_is_safe(client):
+    from db import cursor
+    with cursor(TEST_DB) as cur:
+        cur.execute("DELETE FROM plant_image")
+    gid = client.post("/api/v1/gardens", json={"plantIds": [1]}).json()["gardenId"]
+    assert load_data.ensure_images(TEST_DB) is True  # table was empty: photos added
+    assert load_data.ensure_images(TEST_DB) is False  # second run: nothing changes
+    assert client.get(f"/api/v1/gardens/{gid}").status_code == 200  # gardens untouched

@@ -50,7 +50,9 @@
     >
       <v-icon icon="mdi-image-plus-outline" size="32" color="primary" aria-hidden="true" />
       <span class="plant-image-uploader__title">Upload a plant photo</span>
-      <span class="plant-image-uploader__description">Click to choose an image from your device</span>
+      <span class="plant-image-uploader__description"
+        >Click to choose an image from your device</span
+      >
       <span class="plant-image-uploader__supporting">Supports JPEG, PNG and WebP images</span>
     </button>
 

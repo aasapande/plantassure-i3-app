@@ -1,4 +1,5 @@
 <script setup lang="ts">
+  import PhotoCredit from '@/components/common/PhotoCredit.vue';
   import {
     getEnvironmentalConcernChipColor,
     getEnvironmentalConcernLabel,
@@ -8,6 +9,8 @@
     commonName: string | null;
     scientificName: string;
     imageUrl?: string | null;
+    imageCredit?: string | null;
+    imagePageUrl?: string | null;
     environmentalConcern: string | null;
     growthForm?: string | null;
     lifeHistory?: string | null;
@@ -33,6 +36,7 @@
     </div>
 
     <div class="current-plant-summary__identity">
+      <PhotoCredit v-if="imageUrl && imageCredit" :credit="imageCredit" :page-url="imagePageUrl" />
       <h2 v-if="commonName">{{ commonName }}</h2>
       <h2 v-else>
         <em>{{ scientificName }}</em>

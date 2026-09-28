@@ -4,6 +4,8 @@ export interface PlantSearchResult {
   commonName: string | null;
   family: string | null;
   imageUrl: string | null;
+  imageCredit?: string | null;
+  imagePageUrl?: string | null;
 }
 
 export interface PlantSearchResponse {
@@ -34,6 +36,8 @@ export interface PlantCatalogItem {
   commonName: string | null;
   scientificName: string;
   imageUrl: string | null;
+  imageCredit?: string | null;
+  imagePageUrl?: string | null;
   environmentalConcern: EnvironmentalConcern;
   originStatus: OriginStatus | null;
   growthForm: string | null;
@@ -55,16 +59,15 @@ export interface PlantAlternativesParams {
 }
 
 export type AlternativesStatus =
-  | 'matched'
-  | 'no_strict_match_found'
-  | 'insufficient_trait_data'
-  | 'not_applicable';
+  'matched' | 'no_strict_match_found' | 'insufficient_trait_data' | 'not_applicable';
 
 export interface CurrentPlantAlternativeSummary {
   plantId: number;
   commonName: string | null;
   scientificName: string;
   imageUrl: string | null;
+  imageCredit?: string | null;
+  imagePageUrl?: string | null;
   environmentalConcern: EnvironmentalConcern;
   growthForm: string | null;
   lifeHistory: string | null;
@@ -77,6 +80,8 @@ export interface AlternativePlant {
   commonName: string | null;
   scientificName: string;
   imageUrl: string | null;
+  imageCredit?: string | null;
+  imagePageUrl?: string | null;
   environmentalConcern: EnvironmentalConcern;
   originStatus: OriginStatus | null;
   legalStatus: LegalStatus;
@@ -99,6 +104,8 @@ export interface ComparisonPlant {
   commonName: string | null;
   scientificName: string;
   imageUrl: string | null;
+  imageCredit?: string | null;
+  imagePageUrl?: string | null;
   environmentalConcern: EnvironmentalConcern;
   legalStatus: LegalStatus;
   originStatus: OriginStatus;
@@ -119,6 +126,8 @@ export interface PlantIdentity {
   commonName: string | null;
   family: string | null;
   imageUrl: string | null;
+  imageCredit?: string | null;
+  imagePageUrl?: string | null;
 }
 
 export type LocalOccurrenceStatus = 'FOUND' | 'NOT_FOUND' | 'UNAVAILABLE';

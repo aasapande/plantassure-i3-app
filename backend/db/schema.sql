@@ -4,6 +4,7 @@
 DROP TABLE IF EXISTS garden_plant;
 DROP TABLE IF EXISTS garden;
 DROP TABLE IF EXISTS plant_alternative;
+DROP TABLE IF EXISTS plant_image;
 DROP TABLE IF EXISTS plant_evidence;
 DROP TABLE IF EXISTS plant_flowering;
 DROP TABLE IF EXISTS plant_local_records;
@@ -50,6 +51,17 @@ CREATE TABLE plant_flowering (
   PRIMARY KEY (plant_id, month),
   CONSTRAINT fk_flowering_plant FOREIGN KEY (plant_id) REFERENCES plant (plant_id) ON DELETE CASCADE,
   CONSTRAINT chk_flowering_month CHECK (month BETWEEN 1 AND 12)
+) ENGINE=InnoDB;
+
+-- One reusable-licence photo per plant (iNaturalist; CC0 / CC BY / CC BY-SA)
+CREATE TABLE plant_image (
+  plant_id      INT UNSIGNED  NOT NULL,
+  image_url     VARCHAR(300)  NOT NULL,
+  license       VARCHAR(20)   NOT NULL,
+  attribution   VARCHAR(300)  NOT NULL,   -- photographer credit, shown with the photo
+  page_url      VARCHAR(300)  NULL,       -- photo's page on iNaturalist
+  PRIMARY KEY (plant_id),
+  CONSTRAINT fk_image_plant FOREIGN KEY (plant_id) REFERENCES plant (plant_id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
 -- Occurrence evidence in the City of Monash (VBA_FLORA100 + ALA)

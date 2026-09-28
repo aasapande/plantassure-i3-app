@@ -8,6 +8,7 @@
   import InfoTip from '@/components/common/InfoTip.vue';
   import TermCards from '@/components/common/TermCards.vue';
   import PlantPassport from '@/components/passport/PlantPassport.vue';
+  import PhotoCredit from '@/components/common/PhotoCredit.vue';
   import { getPassport } from '@/api/passport';
   import type { PassportPlant } from '@/types/passport';
   import { useGardenStore } from '@/stores/garden';
@@ -242,6 +243,11 @@
                 alt=""
                 cover
                 class="assessment-identity__image"
+              />
+              <PhotoCredit
+                v-if="assessmentData.plant.imageCredit"
+                :credit="assessmentData.plant.imageCredit"
+                :page-url="assessmentData.plant.imagePageUrl"
               />
             </aside>
           </section>

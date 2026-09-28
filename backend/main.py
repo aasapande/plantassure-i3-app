@@ -20,7 +20,7 @@ from pydantic import BaseModel, Field, field_validator
 
 from db import cursor
 from identify import router as identify_router
-from load_data import load_if_empty
+from load_data import init_database
 
 API = "/api/v1"
 MAX_GARDEN_PLANTS = 100
@@ -50,9 +50,12 @@ EXPLANATIONS = {
     "Not Assessed": "No exact matching assessment was found in the 2022 Advisory List. This does not mean the plant is free of risk.",
 }
 PLANT_SQL = """
-    SELECT p.*, r.vba100_count, r.vba100_latest_year, r.ala_count, r.ala_latest_year
+    SELECT p.*, r.vba100_count, r.vba100_latest_year, r.ala_count, r.ala_latest_year,
+           i.image_url, i.license AS image_license, i.attribution AS image_attribution, i.page_url AS image_page_url
     FROM plant p JOIN plant_local_records r USING (plant_id)
+    LEFT JOIN plant_image i USING (plant_id)
 """
+LICENSE_LABELS = {"cc0": "CC0", "cc-by": "CC BY", "cc-by-sa": "CC BY-SA"}
 
 
 def now() -> datetime:
@@ -110,13 +113,26 @@ def fetch_plant(plant_id: int) -> dict:
     return row
 
 
+def image_credit(row) -> str | None:
+    """Photographer credit required by the photo's licence."""
+    if not row.get("image_url"):
+        return None
+    attribution = row["image_attribution"]
+    license_label = LICENSE_LABELS.get(row["image_license"], row["image_license"])
+    if license_label not in attribution:  # iNaturalist credits usually name the licence already
+        attribution = f"{attribution} ({license_label})"
+    return f"Photo: {attribution} · via iNaturalist"
+
+
 def summary_item(row) -> dict:
     return {
         "plantId": row["plant_id"],
         "scientificName": row["scientific_name"],
         "commonName": row["common_name"],
         "family": row["family"],
-        "imageUrl": None,
+        "imageUrl": row.get("image_url"),
+        "imageCredit": image_credit(row),
+        "imagePageUrl": row.get("image_page_url"),
     }
 
 
@@ -211,7 +227,7 @@ async def cleanup_loop() -> None:
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     if os.environ.get("INIT_DB_IF_EMPTY", "").lower() == "true":
-        await asyncio.to_thread(load_if_empty)  # first deploy: create tables and load plants
+        await asyncio.to_thread(init_database)  # first deploy: create tables; later: add missing photos
     task = asyncio.create_task(cleanup_loop())
     yield
     task.cancel()
@@ -249,7 +265,9 @@ def search_plants(q: str = "", limit: int = Query(8, ge=1, le=50)):
     like, starts = f"%{query}%", f"{query}%"
     with cursor() as cur:
         cur.execute(
-            """SELECT plant_id, scientific_name, common_name, family FROM plant
+            """SELECT p.plant_id, p.scientific_name, p.common_name, p.family, i.image_url,
+                      i.license AS image_license, i.attribution AS image_attribution, i.page_url AS image_page_url
+               FROM plant p LEFT JOIN plant_image i USING (plant_id)
                WHERE scientific_name LIKE %s OR common_name LIKE %s
                ORDER BY (common_name LIKE %s OR scientific_name LIKE %s) DESC, scientific_name
                LIMIT %s""",

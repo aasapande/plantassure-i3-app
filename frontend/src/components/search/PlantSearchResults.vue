@@ -20,13 +20,7 @@
     <h2 id="plant-results-title">Search results</h2>
 
     <div v-if="isLoading" class="plant-results__status" role="status" aria-live="polite">
-      <v-progress-circular
-        indeterminate
-        :size="18"
-        :width="2"
-        color="primary"
-        aria-hidden="true"
-      />
+      <v-progress-circular indeterminate :size="18" :width="2" color="primary" aria-hidden="true" />
       <span>Searching plants…</span>
     </div>
 

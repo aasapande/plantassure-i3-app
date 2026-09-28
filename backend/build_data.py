@@ -7,23 +7,45 @@ Each plant gets a stable id (position in the pipeline output, which follows
 VicFlora's alphabetical order). Swap suggestions come from the pipeline's
 strict four-trait matching, converted from scientific names to ids.
 """
+import csv
 import json
 import sys
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 DEFAULT_SOURCE = HERE.parent / "pipeline/output/output_i3.json"
+# Photos: iNaturalist results from plantassure_inat_image_coverage_v2.py
+# (exact name/synonym matches, reusable licences only: CC0, CC BY, CC BY-SA).
+IMAGES_SOURCE = HERE.parent / "pipeline/inat_images.csv"
+
+
+def load_images() -> dict:
+    if not IMAGES_SOURCE.exists():
+        return {}
+    with IMAGES_SOURCE.open(encoding="utf-8") as f:
+        return {
+            row["plantassure_scientific_name"]: {
+                "url": row["photo_url"],
+                "license": row["photo_license"],
+                "attribution": row["photo_attribution"],
+                "page_url": row["photo_page_url"],
+            }
+            for row in csv.DictReader(f)
+            if row["usable_photo"] == "True" and row["photo_url"]
+        }
 
 
 def main(source: Path) -> None:
     rows = json.loads(source.read_text(encoding="utf-8"))
     ids = {row["scientific_name"]: index + 1 for index, row in enumerate(rows)}
+    images = load_images()
 
     plants = []
     for row in rows:
         alt = row["alternatives"]
         row = dict(row)
         row["id"] = ids[row["scientific_name"]]
+        row["image"] = images.get(row["scientific_name"])
         row["alternatives"] = {
             "status": alt["status"],
             "ids": [ids[a["scientific_name"]] for a in alt["alternatives"] if a["scientific_name"] in ids],
@@ -33,7 +55,7 @@ def main(source: Path) -> None:
     out = HERE / "data" / "plants.json"
     out.parent.mkdir(exist_ok=True)
     out.write_text(json.dumps(plants, ensure_ascii=False), encoding="utf-8")
-    print(f"Wrote {len(plants)} plants to {out}")
+    print(f"Wrote {len(plants)} plants ({sum(1 for p in plants if p['image'])} with photos) to {out}")
 
 
 if __name__ == "__main__":

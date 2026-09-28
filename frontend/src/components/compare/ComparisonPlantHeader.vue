@@ -1,4 +1,5 @@
 <script setup lang="ts">
+  import PhotoCredit from '@/components/common/PhotoCredit.vue';
   import { computed, ref, watch } from 'vue';
 
   import {
@@ -14,6 +15,8 @@
     | 'commonName'
     | 'scientificName'
     | 'imageUrl'
+    | 'imageCredit'
+    | 'imagePageUrl'
     | 'environmentalConcern'
     | 'originStatus'
   >;
@@ -58,6 +61,11 @@
       </div>
 
       <div class="comparison-plant-header__copy">
+        <PhotoCredit
+          v-if="imageUrl && imageCredit && !imageFailed"
+          :credit="imageCredit"
+          :page-url="imagePageUrl"
+        />
         <h2 v-if="commonName">{{ commonName }}</h2>
         <h2 v-else>
           <em>{{ scientificName }}</em>

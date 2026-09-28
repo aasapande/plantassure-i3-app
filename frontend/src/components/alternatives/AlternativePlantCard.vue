@@ -1,4 +1,5 @@
 <script setup lang="ts">
+  import PhotoCredit from '@/components/common/PhotoCredit.vue';
   import InfoTip from '@/components/common/InfoTip.vue';
   import {
     getEnvironmentalConcernChipColor,
@@ -13,6 +14,8 @@
     commonName: string | null;
     scientificName: string;
     imageUrl?: string | null;
+    imageCredit?: string | null;
+    imagePageUrl?: string | null;
     environmentalConcern: string | null;
     originStatus: OriginStatus | null;
     legalStatus: LegalStatus;
@@ -26,6 +29,8 @@
 
   const props = withDefaults(defineProps<AlternativePlantCardProps>(), {
     imageUrl: null,
+    imageCredit: null,
+    imagePageUrl: null,
     environmentalConcern: null,
     originStatus: null,
     growthForm: null,
@@ -57,6 +62,7 @@
     </div>
 
     <div class="alternative-plant-card__body">
+      <PhotoCredit v-if="imageUrl && imageCredit" :credit="imageCredit" :page-url="imagePageUrl" />
       <div>
         <h2 v-if="commonName">{{ commonName }}</h2>
         <h2 v-else>

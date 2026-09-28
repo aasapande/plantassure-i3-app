@@ -30,6 +30,38 @@ def run_schema(cur) -> None:
             cur.execute(statement)
 
 
+IMAGE_TABLE_SQL = """
+    CREATE TABLE IF NOT EXISTS plant_image (
+      plant_id INT UNSIGNED NOT NULL, image_url VARCHAR(300) NOT NULL, license VARCHAR(20) NOT NULL,
+      attribution VARCHAR(300) NOT NULL, page_url VARCHAR(300) NULL, PRIMARY KEY (plant_id),
+      CONSTRAINT fk_image_plant FOREIGN KEY (plant_id) REFERENCES plant (plant_id) ON DELETE CASCADE
+    ) ENGINE=InnoDB"""
+
+
+def insert_images(cur, plants) -> None:
+    cur.executemany(
+        "INSERT INTO plant_image (plant_id, image_url, license, attribution, page_url) VALUES (%s,%s,%s,%s,%s)",
+        [
+            (p["id"], p["image"]["url"], p["image"]["license"], p["image"]["attribution"], p["image"]["page_url"])
+            for p in plants
+            if p.get("image")
+        ],
+    )
+
+
+def ensure_images(database: str | None = None) -> bool:
+    """Adds the photo table to an existing database (e.g. one deployed before
+    photos existed) and fills it if empty. Nothing else is changed."""
+    plants = json.loads((HERE / "data" / "plants.json").read_text(encoding="utf-8"))
+    with cursor(database) as cur:
+        cur.execute(IMAGE_TABLE_SQL)
+        cur.execute("SELECT COUNT(*) AS n FROM plant_image")
+        if cur.fetchone()["n"]:
+            return False
+        insert_images(cur, plants)
+    return True
+
+
 def load(database: str | None = None) -> dict:
     plants = json.loads((HERE / "data" / "plants.json").read_text(encoding="utf-8"))
     with cursor(database) as cur:
@@ -81,12 +113,14 @@ def load(database: str | None = None) -> dict:
             "INSERT INTO plant_evidence (plant_id, evidence_type) VALUES (%s,%s)",
             [(p["id"], e) for p in plants for e in p["evidence"]["available"]],
         )
+        insert_images(cur, plants)
         cur.executemany(
             "INSERT INTO plant_alternative (plant_id, alternative_id, rank_order) VALUES (%s,%s,%s)",
             [(p["id"], alt, rank + 1) for p in plants for rank, alt in enumerate(p["alternatives"]["ids"])],
         )
         counts = {}
-        for table in ["plant", "plant_flowering", "plant_local_records", "plant_evidence", "plant_alternative"]:
+        for table in ["plant", "plant_flowering", "plant_local_records", "plant_evidence", "plant_alternative",
+                      "plant_image"]:
             cur.execute(f"SELECT COUNT(*) AS n FROM {table}")
             counts[table] = cur.fetchone()["n"]
     return counts
@@ -103,6 +137,12 @@ def load_if_empty(database: str | None = None) -> bool:
                 return False
     load(database)
     return True
+
+
+def init_database(database: str | None = None) -> None:
+    """Startup setup: full load when empty, otherwise only add missing photos."""
+    if not load_if_empty(database):
+        ensure_images(database)
 
 
 if __name__ == "__main__":
