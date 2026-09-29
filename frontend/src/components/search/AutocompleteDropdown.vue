@@ -55,10 +55,28 @@
       @mousemove="$emit('activate', index)"
       @click="$emit('select', suggestion)"
     >
-      <span v-if="suggestion.commonName" class="autocomplete-dropdown__common-name">
-        {{ suggestion.commonName }}
+      <span class="autocomplete-dropdown__thumb" aria-hidden="true">
+        <img
+          v-if="suggestion.imageUrl"
+          :src="suggestion.imageUrl"
+          alt=""
+          loading="lazy"
+          decoding="async"
+        />
+        <v-icon v-else icon="mdi-leaf" size="20" />
       </span>
-      <em class="autocomplete-dropdown__scientific-name">{{ suggestion.scientificName }}</em>
+      <span class="autocomplete-dropdown__text">
+        <span v-if="suggestion.commonName" class="autocomplete-dropdown__common-name">
+          {{ suggestion.commonName }}
+        </span>
+        <em class="autocomplete-dropdown__scientific-name">{{ suggestion.scientificName }}</em>
+        <span
+          v-if="activeIndex === index && suggestion.imageUrl && suggestion.imageCredit"
+          class="autocomplete-dropdown__credit"
+        >
+          {{ suggestion.imageCredit }}
+        </span>
+      </span>
     </button>
   </div>
 </template>
@@ -104,9 +122,8 @@
     width: 100%;
     min-height: 64px;
     display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    justify-content: center;
+    align-items: center;
+    gap: var(--space-sm);
     padding: 10px var(--space-md);
     border: 0;
     border-bottom: 1px solid var(--color-border);
@@ -125,6 +142,47 @@
     background: var(--color-surface-muted);
   }
 
+  /* Photo thumbnail: widens when the row is hovered or selected with the keyboard. */
+  .autocomplete-dropdown__thumb {
+    width: 48px;
+    height: 48px;
+    flex: none;
+    display: grid;
+    place-items: center;
+    overflow: hidden;
+    border-radius: var(--radius-sm);
+    background: var(--color-success-soft);
+    color: var(--color-primary);
+    transition:
+      width 180ms ease,
+      height 180ms ease;
+  }
+
+  .autocomplete-dropdown__thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .autocomplete-dropdown__option--active .autocomplete-dropdown__thumb {
+    width: 128px;
+    height: 96px;
+  }
+
+  .autocomplete-dropdown__text {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .autocomplete-dropdown__credit {
+    margin-top: 4px;
+    color: var(--color-muted);
+    font-size: 0.6875rem;
+    line-height: 1.3;
+  }
+
   .autocomplete-dropdown__common-name {
     font-size: 0.9375rem;
     font-weight: 600;
@@ -133,6 +191,12 @@
   .autocomplete-dropdown__scientific-name {
     color: var(--color-ink-soft);
     font-size: 0.8125rem;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .autocomplete-dropdown__thumb {
+      transition: none;
+    }
   }
 
   @media (max-width: 479px) {
