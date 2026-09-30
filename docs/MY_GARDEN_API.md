@@ -1,334 +1,370 @@
-# My Garden — API documentation
+# PlantAssure — My Garden API Documentation
 
-This covers everything the My Garden epic needs: the four garden endpoints, the two plant
-endpoints the garden page reads from, the database tables, and the rules the frontend follows.
+Version 1.0 · Iteration 3 · Epic: My Garden (US 1–9)
 
-- **Live base URL:** `https://plantassure-i3-api.onrender.com/api/v1`
-- **Interactive docs (try requests in the browser):** `https://plantassure-i3-api.onrender.com/docs`
-- **Local base URL:** `http://localhost:8090/api/v1`
-- **Format:** JSON in, JSON out (`Content-Type: application/json`)
-- **No login.** Gardens are anonymous. Only a random id, plant ids and a timestamp are stored.
-
-> The free Render server sleeps when unused. The first request after a while can take up to
-> ~60 seconds, so use a generous client timeout (the reference app uses 70 s).
+- **Base path:** `/api/v1`
+- **Format:** JSON (`Content-Type: application/json`)
+- **Authentication:** none. Gardens are anonymous. Changing or deleting a garden needs the
+  garden's private edit key in a request header (see below).
+- **Plant ids** are `species_data.id`.
+- **Working reference:** the same endpoints are live at
+  https://plantassure-i3-api.onrender.com/docs (interactive; first load can take ~60 s).
+  That prototype uses different plant ids and returns errors as `{ "detail": … }` with 422 for
+  bad plant lists; this document uses our backend's ids and error format.
 
 ---
 
-## 1. Garden endpoints
+## Summary
 
-| Method | Path | Purpose | Needs edit key? |
-|---|---|---|---|
-| `POST` | `/gardens` | Create a saved garden (“Get a private link”) | No |
-| `GET` | `/gardens/{gardenId}` | Read a garden (share link and edit link) | No |
-| `PUT` | `/gardens/{gardenId}` | Replace the garden’s plant list (auto-save) | **Yes** |
-| `DELETE` | `/gardens/{gardenId}` | Delete the saved garden | **Yes** |
+| # | Method | Endpoint | Purpose | Edit key |
+|---|---|---|---|---|
+| 1 | `POST` | `/api/v1/gardens` | Create a saved garden | No |
+| 2 | `GET` | `/api/v1/gardens/{gardenId}` | Get a garden | No |
+| 3 | `PUT` | `/api/v1/gardens/{gardenId}` | Replace a garden's plant list | **Yes** |
+| 4 | `DELETE` | `/api/v1/gardens/{gardenId}` | Delete a garden | **Yes** |
+| 5 | `GET` | `/api/v1/plants/passports?ids=…` | Plant details for many plants | No |
+| 6 | `GET` | `/api/v1/plants/{plantId}/passport` | Plant details for one plant | No |
+| — | `GET` | `/api/v1/plants/{plantId}/alternatives` | Swap ideas (**existing endpoint, unchanged**) | No |
 
-The edit key is sent in a request header:
+### Edit key header
 
 ```
 X-Garden-Edit-Token: <editToken>
 ```
 
-### 1.1 `POST /gardens` — create a garden
+Required for `PUT` and `DELETE`. `GET` never needs it, which is what makes the share link
+view-only.
 
-Used by **US 4 / AC 4.1** (“Get a private link”).
+### Error format
+
+All errors use the existing `ErrorResponse`:
+
+```json
+{
+  "code": "GARDEN_NOT_FOUND",
+  "message": "This garden link is no longer available.",
+  "path": "/api/v1/gardens/e1f80156-ccb1-44c4-9961-89b9904c39ae"
+}
+```
+
+| HTTP | `code` | `message` | When |
+|---|---|---|---|
+| 400 | `INVALID_GARDEN_PLANTS` | plantIds must contain up to 100 existing plant IDs. | Bad `plantIds` |
+| 400 | `INVALID_REQUEST` | ids must be numbers. | Bad `ids` on endpoint 5 |
+| 403 | `GARDEN_EDIT_FORBIDDEN` | You can view this garden but not change it. | Edit key missing or wrong |
+| 404 | `GARDEN_NOT_FOUND` | This garden link is no longer available. | Garden missing, deleted, expired, or id not a UUID v4 |
+| 404 | `PLANT_NOT_FOUND` | Plant not found. | Endpoint 6, unknown plant |
+
+---
+
+## 1. Create a garden
+
+`POST /api/v1/gardens`
+
+Called when the user clicks **“Get a private link”** (AC 4.1).
 
 **Request body**
 
 ```json
-{ "plantIds": [46, 602, 287] }
+{ "plantIds": [3, 7, 120] }
 ```
 
-| Field | Type | Rules |
-|---|---|---|
-| `plantIds` | array of integers | 0–100 items, each a positive plant id that exists. Duplicates are removed (first position kept). Order is kept. |
+| Field | Type | Required | Rules |
+|---|---|---|---|
+| `plantIds` | array of integers | No (missing = `[]`) | Max 100 items. Each must be a positive, existing `species_data.id`. Duplicates are removed, keeping the first position. Order is kept. |
 
-**Response `201 Created`**
+**Response — `201 Created`**
 
 ```json
 {
   "gardenId": "e1f80156-ccb1-44c4-9961-89b9904c39ae",
-  "plantIds": [46, 602, 287],
+  "plantIds": [3, 7, 120],
   "updatedAt": "2026-09-29T11:55:39",
   "editToken": "q1v6mB0kq7yJ3d1tL0Hn9o0B6zQy1c2w8oYxQbq3m9E"
 }
 ```
 
-- `gardenId` is a random UUID v4.
-- `editToken` is returned **only here, once**. The server keeps only its SHA-256 hash and can
-  never show it again. The frontend must store it (see section 4).
+| Field | Type | Notes |
+|---|---|---|
+| `gardenId` | string (UUID v4) | Created by the server with a secure random generator |
+| `plantIds` | array of integers | After removing duplicates |
+| `updatedAt` | string | UTC, ISO-8601, seconds precision |
+| `editToken` | string | 32 random bytes, URL-safe Base64 (43 chars). **Returned only in this response.** The server stores only its SHA-256 hash. |
 
-**Errors:** `422` if a plant id doesn’t exist, is not positive, or there are more than 100.
+**Errors:** `400 INVALID_GARDEN_PLANTS`
 
-### 1.2 `GET /gardens/{gardenId}` — read a garden
+---
 
-Used by **US 5** (edit link), **US 6** (share link) and **AC 6.5**.
+## 2. Get a garden
 
-**Response `200 OK`**
+`GET /api/v1/gardens/{gardenId}`
+
+Used when opening the share link or the edit link (US 5, US 6).
+
+| Path parameter | Type | Notes |
+|---|---|---|
+| `gardenId` | string | Must be a UUID v4. Anything else returns 404. |
+
+**Response — `200 OK`**
 
 ```json
 {
   "gardenId": "e1f80156-ccb1-44c4-9961-89b9904c39ae",
-  "plantIds": [46, 602, 287],
+  "plantIds": [3, 7, 120],
   "updatedAt": "2026-09-29T11:55:39"
 }
 ```
 
-- Never returns the edit key.
+- Never includes `editToken`.
 - `plantIds` are in the order the owner added them.
 
-**Errors:** `404 {"detail": "Garden not found."}` when the garden doesn’t exist, was deleted,
-was not changed for 90 days, or the id is not a valid UUID v4. The frontend shows
-“This garden link is no longer available” (**AC 5.2**).
-
-### 1.3 `PUT /gardens/{gardenId}` — save changes
-
-Used by **AC 4.2** (auto-save), **AC 8.1** (Clear keeps the garden) and copying into a saved
-garden (**AC 6.4**). It **replaces** the whole list, it doesn’t add to it.
-
-**Headers:** `X-Garden-Edit-Token: <editToken>`
-
-**Request body:** same as `POST` — `{ "plantIds": [46, 287] }`. An empty list is allowed
-(that is what “Clear my garden” sends; the garden and both links stay valid).
-
-**Response `200 OK`:** same shape as `GET`, with a new `updatedAt`. Every successful save resets
-the 90-day expiry.
-
-**Errors**
-
-| Code | When | What the frontend does |
-|---|---|---|
-| `403` | Header missing or wrong key | Stops syncing; list stays in the browser |
-| `404` | Garden deleted or expired | Shows “This garden link is no longer available” |
-| `422` | Unknown / invalid plant id, or more than 100 | Shows a save error |
-
-### 1.4 `DELETE /gardens/{gardenId}` — delete the saved garden
-
-Used by **AC 8.2**.
-
-**Headers:** `X-Garden-Edit-Token: <editToken>`
-
-**Response:** `204 No Content`. After this, `GET` on the same id returns `404`, so both the
-share link and the edit link stop working. The plant list stays in the browser (the frontend
-does not clear it).
-
-**Errors:** `403` wrong/missing key, `404` already gone (the frontend treats this as success).
+**Errors:** `404 GARDEN_NOT_FOUND` (also returned for gardens not changed for 90 days, even if
+not yet deleted)
 
 ---
 
-## 2. Plant endpoints used by My Garden
+## 3. Update a garden
 
-### 2.1 `GET /plants/passports?ids=46,602,287` — details for many plants at once
+`PUT /api/v1/gardens/{gardenId}`
 
-The garden page calls this once with all its plant ids, to draw the cards, the check-up stats,
-the tier bar and the tips. Up to 100 ids; unknown ids are simply left out.
+Auto-save after any change (AC 4.2), and **“Clear my garden”** (AC 8.1). **Replaces** the whole
+list; it does not add to it.
 
-**Response `200 OK`** — an object keyed by plant id (as a string):
+**Headers:** `X-Garden-Edit-Token: <editToken>` (required)
 
-```json
-{
-  "46": {
-    "plant_id": 46,
-    "scientific_name": "Agapanthus praecox",
-    "common_name": "Agapanthus",
-    "recommendation": "Reconsider Planting",
-    "origin": "introduced",
-    "establishment": null,
-    "plant_type": "Herb",
-    "traits": {
-      "growth_form": "herb", "woodiness": "herbaceous", "life_history": "perennial",
-      "height_min_m": 1.0, "height_max_m": 1.0
-    },
-    "flowering": {
-      "months": [true, false, false, false, false, false, false, false, false, false, false, true],
-      "label": "Dec–Jan",
-      "sources": 1,
-      "split_pattern": false
-    },
-    "spread": {
-      "resprouting": null, "vegetative_spread": null,
-      "dispersal": null, "seedbank_longevity": null
-    },
-    "wet_soil_tolerance": null,
-    "local_records": {
-      "vba100_count": 3, "vba100_latest_year": 2009,
-      "ala_count": 4, "ala_latest_date": "2025"
-    },
-    "griis_listed_introduced": true,
-    "evidence": {
-      "strength": "Strong",
-      "available": ["rating", "origin", "local_records", "traits", "flowering", "griis"],
-      "missing": []
-    },
-    "vicflora_url": "https://vicflora.rbg.vic.gov.au/flora/taxon/9af576d9-07e9-4491-84b0-3de71adbe509"
-  }
-}
-```
-
-Key fields for the epic:
-
-| Field | Values | Used for |
-|---|---|---|
-| `recommendation` | `Reconsider Planting`, `Use Caution`, `Lower Concern`, `Not Assessed` | Risk badge, tier bar (**AC 2.2**), which buttons show (**US 3**) |
-| `origin` | `native`, `introduced`, or `null` | “Native to Victoria” stat (**AC 2.1**), Growing tips rule (**AC 3.4**) |
-| `flowering.label` | e.g. `"Dec–Jan"`, or `null` | Flowering window “where known” (**AC 3.1**) |
-| `spread.*`, `wet_soil_tolerance`, `traits.*` | text or `null` | Plant-specific containment / growing tips (**AC 3.2**) |
-
-There is also `GET /plants/{plantId}/passport`, which returns the same object for one plant
-(`404` if the plant doesn’t exist).
-
-### 2.2 `GET /plants/{plantId}/alternatives?limit=3` — swap ideas
-
-Used by the PDF swap ideas (**AC 9.1**). “Find a swap” (**AC 3.3**) just opens the existing
-Find a Better Plant page for that plant id. `limit` is 1–20 (default 6).
-
-**Response `200 OK`** (trimmed):
+**Request body**
 
 ```json
-{
-  "status": "matched",
-  "currentPlant": { "plantId": 46, "commonName": "Agapanthus", "scientificName": "Agapanthus praecox", "...": "..." },
-  "alternatives": [
-    {
-      "plantId": 82,
-      "commonName": "Nodding Chocolate-lily",
-      "scientificName": "Arthropodium fimbriatum",
-      "environmentalConcern": "NOT_ASSESSED",
-      "originStatus": "NATIVE",
-      "growthForm": "herb",
-      "height": "0.09–1 m",
-      "matchReasons": ["Same growth form", "Same life-history category", "Same woodiness", "Similar mature height"]
-    }
-  ]
-}
+{ "plantIds": [3, 120] }
 ```
 
-`status` is one of `matched`, `no_strict_match_found`, `insufficient_trait_data`,
-`not_applicable`. When `alternatives` is empty the PDF prints: “No close match found. Ask a
-local indigenous nursery for a native alternative.” Unrated plants are only offered as swaps if
-they are native to Victoria.
+Same rules as endpoint 1. An empty list `[]` is allowed: the garden and both links stay valid.
+
+**Response — `200 OK`:** same as endpoint 2, with a new `updatedAt`. Every successful update
+resets the 90-day expiry.
+
+**Errors (checked in this order)**
+
+1. `404 GARDEN_NOT_FOUND`
+2. `403 GARDEN_EDIT_FORBIDDEN`
+3. `400 INVALID_GARDEN_PLANTS`
 
 ---
 
-## 3. Database tables
+## 4. Delete a garden
 
-Only these two tables are written by My Garden. No names, emails, IP addresses or other personal
-data.
+`DELETE /api/v1/gardens/{gardenId}`
+
+**“Delete saved garden”** (AC 8.2).
+
+**Headers:** `X-Garden-Edit-Token: <editToken>` (required)
+
+**Response — `204 No Content`** (no body). Afterwards, endpoints 2–4 return 404 for this id, so
+both the share link and the edit link stop working.
+
+**Errors:** `404 GARDEN_NOT_FOUND`, `403 GARDEN_EDIT_FORBIDDEN`
+
+---
+
+## 5. Get plant passports (many)
+
+`GET /api/v1/plants/passports?ids=3,7,120`
+
+The garden page calls this once with all its plant ids to draw the plant cards, the check-up
+stats, the risk tier bar and the tips (US 2, US 3, US 9).
+
+| Query parameter | Type | Notes |
+|---|---|---|
+| `ids` | string | Comma-separated plant ids. Only the first 100 are used. Unknown ids are left out (no error). |
+
+**Response — `200 OK`:** an object keyed by plant id (as a string). Each value is a
+[Plant passport](#plant-passport-object).
+
+```json
+{
+  "3": { "plant_id": 3, "scientific_name": "Acacia baileyana", "...": "..." },
+  "7": { "plant_id": 7, "scientific_name": "Acacia dealbata", "...": "..." }
+}
+```
+
+**Errors:** `400 INVALID_REQUEST` if `ids` contains something that isn't a number.
+
+---
+
+## 6. Get plant passport (one)
+
+`GET /api/v1/plants/{plantId}/passport`
+
+**Response — `200 OK`:** one [Plant passport](#plant-passport-object).
+
+**Errors:** `404 PLANT_NOT_FOUND`
+
+---
+
+## Plant passport object
+
+Field names are **snake_case** (unlike other endpoints) so the existing frontend garden page
+works unchanged. In Java: `@JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)`.
+
+```json
+{
+  "plant_id": 3,
+  "scientific_name": "Acacia baileyana",
+  "common_name": "Cootamundra Wattle",
+  "recommendation": "Use Caution",
+  "origin": "introduced",
+  "establishment": "naturalised",
+  "plant_type": "Tree",
+  "traits": {
+    "growth_form": "shrub tree",
+    "woodiness": "woody",
+    "life_history": "perennial",
+    "height_min_m": 3.0,
+    "height_max_m": 10.0
+  },
+  "flowering": {
+    "months": [false, false, false, false, false, true, true, true, true, false, false, false],
+    "label": "Jun–Sep",
+    "sources": 4,
+    "split_pattern": false
+  },
+  "spread": {
+    "resprouting": null,
+    "vegetative_spread": null,
+    "dispersal": "ants",
+    "seedbank_longevity": null
+  },
+  "wet_soil_tolerance": null,
+  "local_records": {
+    "vba100_count": 2,
+    "vba100_latest_year": 2000,
+    "ala_count": 12,
+    "ala_latest_date": "2026-04-25"
+  },
+  "griis_listed_introduced": true,
+  "evidence": {
+    "strength": "Strong",
+    "available": ["rating", "origin", "local_records", "traits", "flowering", "griis"],
+    "missing": []
+  },
+  "vicflora_url": "https://vicflora.rbg.vic.gov.au/flora/taxon/238b3bfd-4a0c-4638-b928-485897ec580d"
+}
+```
+
+| Field | Type | Values / source | Used for |
+|---|---|---|---|
+| `plant_id` | integer | `species_data.id` | |
+| `scientific_name` | string | `species_data` | Card |
+| `common_name` | string / null | Iteration 3 name, else `species_data.vernacular_name` | Card |
+| `recommendation` | string | `Reconsider Planting`, `Use Caution`, `Lower Concern`, `Not Assessed`. **Same rule as the assessment page:** Very High/High → Reconsider Planting; Moderately High/Medium → Use Caution; Lower → Lower Concern; otherwise Not Assessed | Risk badge, tier bar, “need attention” (AC 2.1–2.2, 3.1) |
+| `origin` | string / null | `native`, `introduced` (lower case) | “Native to Victoria” stat; Growing tips rule (AC 2.1, 3.4) |
+| `establishment` | string / null | `species_data.degree_of_establishment` | |
+| `plant_type` | string / null | e.g. `Tree`, `Shrub`, `Herb`, `Grass` | Growing tips heading |
+| `traits.*` | string / number / null | `species_data` | Tips |
+| `flowering.months` | 12 booleans (Jan–Dec) / null | null when no flowering data | |
+| `flowering.label` | string / null | e.g. `Jun–Sep` | Flowering window “where known” (AC 3.1) |
+| `flowering.sources` | integer | 0–4 | |
+| `flowering.split_pattern` | boolean | | |
+| `spread.*` | string / null | AusTraits | Plant-specific containment tips (AC 3.2) |
+| `wet_soil_tolerance` | string / null | AusTraits | Tips |
+| `local_records.*` | integer / string / null | `species_data` VBA and ALA columns | Tips |
+| `griis_listed_introduced` | boolean | `species_data.griis_listed` | |
+| `evidence.strength` | string | `Strong`, `Moderate`, `Limited` | |
+| `evidence.available` / `missing` | array of strings | `rating`, `origin`, `local_records`, `traits`, `flowering`, `griis` | |
+| `vicflora_url` | string / null | | |
+
+Data for `common_name`, `plant_type`, `flowering`, `spread`, `wet_soil_tolerance`, `evidence`
+and `vicflora_url` comes from the new `species_passport` table (see below).
+
+---
+
+## Swap ideas (existing endpoint)
+
+`GET /api/v1/plants/{plantId}/alternatives?limit=3`
+
+No change needed. The garden page uses it for:
+
+- **“Find a swap”** (AC 3.3): opens the existing Find a Better Plant page for that plant.
+- **Print / PDF** (AC 9.1): prints up to 3 alternative names as “Swap ideas”. If the list is
+  empty it prints “No close match found. Ask a local indigenous nursery for a native
+  alternative.”
+
+---
+
+## Database
 
 ```sql
 CREATE TABLE garden (
-  garden_id        CHAR(36) NOT NULL,   -- random UUID v4
-  updated_at       DATETIME NOT NULL,   -- for the 90-day expiry
-  edit_token_hash  CHAR(64) NULL,       -- SHA-256 of the edit key (key never stored)
+  garden_id        CHAR(36) NOT NULL,   -- UUID v4
+  updated_at       DATETIME NOT NULL,   -- UTC, for the 90-day expiry
+  edit_token_hash  CHAR(64) NOT NULL,   -- SHA-256 hex of the edit key (key never stored)
   PRIMARY KEY (garden_id),
   KEY idx_garden_updated (updated_at)
 );
 
 CREATE TABLE garden_plant (
   garden_id  CHAR(36)          NOT NULL,
-  plant_id   INT UNSIGNED      NOT NULL,
-  position   SMALLINT UNSIGNED NOT NULL,  -- keeps the user's order
-  PRIMARY KEY (garden_id, plant_id),      -- no duplicates
+  plant_id   BIGINT UNSIGNED   NOT NULL,  -- species_data.id
+  position   SMALLINT UNSIGNED NOT NULL,  -- order the user added plants
+  PRIMARY KEY (garden_id, plant_id),
   FOREIGN KEY (garden_id) REFERENCES garden (garden_id) ON DELETE CASCADE,
-  FOREIGN KEY (plant_id)  REFERENCES plant (plant_id)
+  FOREIGN KEY (plant_id)  REFERENCES species_data (id)
 );
 ```
 
-**Expiry:** once an hour the server runs
-`DELETE FROM garden WHERE updated_at < NOW() - INTERVAL 90 DAY`. Reads also treat anything older
-than 90 days as not found, so an expired garden is never returned even between clean-ups.
+`species_passport` (Iteration 3 plant data for endpoints 5–6) is created and filled by
+`spring-boot/species_passport_i3.sql`: 880 rows, matched to `species_data` by
+`scientific_name`.
 
 ---
 
-## 4. Rules the frontend follows
+## Rules
 
-These aren’t API calls, but the acceptance criteria depend on them.
-
-**Browser storage (US 1).** The garden lives in `localStorage` under
-`plantassure.garden.v2`:
-
-```json
-{ "plants": [{ "plantId": 46, "scientificName": "Agapanthus praecox", "commonName": "Agapanthus" }],
-  "gardenId": "e1f8…", "editToken": "q1v6…" }
-```
-
-Adding a plant needs no API call. The server is only involved after “Get a private link”.
-
-**The two links (US 4, 6, 7).**
-
-| Link | Format | Who can do what |
-|---|---|---|
-| Share link | `/garden/{gardenId}` | Anyone can view. No edit key. |
-| Private edit link | `/garden/{gardenId}#edit={editToken}` | Can view, change and delete. |
-
-- The key is after `#`, so browsers never send it to any server or put it in server logs.
-- When an edit link is opened, the page reads the key, saves it in `localStorage`, then removes
-  the `#edit=…` part from the address bar (**AC 7.2**).
-- Opening an edit link on another device replaces that browser’s list with the saved garden
-  (**AC 5.1**).
-- Opening a share link without a key shows the read-only view (**US 6**). The one exception: if
-  that browser already owns the garden, it shows the owner view. Test US 6 in a private window.
-
-**Auto-save (AC 4.2).** When the list changes and a saved garden exists, wait ~600 ms, then send
-`PUT` with the full list. Status shows “Saving…” then “Saved”.
-
-**Copy to my garden (AC 6.3–6.6).** Pure frontend: add each shared plant to the local list,
-skipping ones already there. No request touches the shared garden. If the viewer has their own
-saved garden, the normal auto-save `PUT` sends their updated list to **their** garden only.
-
-**Which buttons each plant shows (US 3).**
-
-| `recommendation` | `origin` | Buttons |
-|---|---|---|
-| Reconsider Planting / Use Caution | any | “Find a swap” + “How to keep it contained” |
-| Lower Concern | any | “Growing tips” |
-| Not Assessed | `native` | “Growing tips” |
-| Not Assessed | not native | none |
-
-“Need attention” (**AC 2.1**) = count of Reconsider Planting + Use Caution.
-
-**Containment steps (AC 3.2).** Plant-specific lines are built from `spread.*`,
-`wet_soil_tolerance` and `traits`, followed by the general “For any risky plant” checklist:
-
-1. Bag seed heads and put them in the rubbish bin, not green waste
-2. Never dump clippings near bushland, parks or creeks
-3. Check nearby for seedlings and pull them out early
-
-(The reference wording is in `frontend/src/utils/passportPresentation.ts`.)
-
-**Print / PDF (US 9).** Uses the browser’s print dialog (`window.print()`). Print CSS hides the
-link panel and buttons, and shows every plant’s tips (even collapsed ones) plus a “Swap ideas:”
-line with up to 3 names from `/alternatives?limit=3` for each risky plant.
+| Rule | Detail |
+|---|---|
+| Garden expiry | Gardens not updated for **90 days** are treated as not found and deleted by an hourly job. |
+| Max plants | 100 per garden |
+| Edit key check | Compare SHA-256 hashes in constant time (`MessageDigest.isEqual`). |
+| Privacy | Store only `garden_id`, `updated_at`, `edit_token_hash` and plant ids. No names, emails or IP addresses. Never log the edit key. |
+| CORS | Allow `GET, POST, PUT, DELETE, OPTIONS` and the `X-Garden-Edit-Token` header. |
 
 ---
 
-## 5. Error format
+## How the frontend uses the API
 
-All errors are JSON:
+| Link | Format | API calls |
+|---|---|---|
+| Share link (view only) | `/garden/{gardenId}` | `GET` only |
+| Private edit link | `/garden/{gardenId}#edit={editToken}` | `GET`, then `PUT`/`DELETE` with the header |
 
-```json
-{ "detail": "You can view this garden but not change it." }
-```
+- Adding a plant to the garden (US 1) needs **no API call**. The list is kept in the browser
+  until the user clicks “Get a private link” (endpoint 1).
+- After that, every change is sent with `PUT` about 0.6 s later.
+- “Copy these plants to my garden” (AC 6.3–6.6) makes **no call** to the shared garden.
+- The frontend only checks the status codes **403** (stop saving) and **404** (“This garden
+  link is no longer available”).
 
-Validation errors (`422`) use FastAPI’s standard format, where `detail` is a list describing
-each invalid field.
+---
 
-## 6. Quick test with curl
+## Example requests (curl)
 
 ```bash
-BASE=https://plantassure-i3-api.onrender.com/api/v1
+BASE=http://localhost:8080/api/v1
 
-# Create (save editToken from the response)
-curl -s -X POST $BASE/gardens -H 'Content-Type: application/json' -d '{"plantIds":[46,287]}'
+# 1. Create -> 201 (copy gardenId and editToken from the response)
+curl -X POST $BASE/gardens -H 'Content-Type: application/json' -d '{"plantIds":[3,7]}'
 
-# Read (share link)
-curl -s $BASE/gardens/<gardenId>
+# 2. Get -> 200
+curl $BASE/gardens/<gardenId>
 
-# Update: without key -> 403, with key -> 200
-curl -s -X PUT $BASE/gardens/<gardenId> -H 'Content-Type: application/json' -d '{"plantIds":[46]}'
-curl -s -X PUT $BASE/gardens/<gardenId> -H 'Content-Type: application/json' \
-     -H 'X-Garden-Edit-Token: <editToken>' -d '{"plantIds":[46]}'
+# 3. Update without key -> 403; with key -> 200
+curl -X PUT $BASE/gardens/<gardenId> -H 'Content-Type: application/json' -d '{"plantIds":[3]}'
+curl -X PUT $BASE/gardens/<gardenId> -H 'Content-Type: application/json' \
+     -H 'X-Garden-Edit-Token: <editToken>' -d '{"plantIds":[3]}'
 
-# Delete -> 204, then GET -> 404
-curl -s -X DELETE $BASE/gardens/<gardenId> -H 'X-Garden-Edit-Token: <editToken>'
+# 4. Delete -> 204, then Get -> 404
+curl -X DELETE $BASE/gardens/<gardenId> -H 'X-Garden-Edit-Token: <editToken>'
+
+# 5. Passports -> 200
+curl "$BASE/plants/passports?ids=3,7"
 ```
