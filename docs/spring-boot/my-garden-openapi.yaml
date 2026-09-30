@@ -1,0 +1,316 @@
+openapi: 3.0.3
+info:
+  title: PlantAssure — My Garden API
+  version: 1.0.0
+  description: |
+    Endpoints for the My Garden epic (US 1–9), written for the PlantAssure Spring Boot backend.
+
+    - No login. Gardens are anonymous: only a random UUID, plant ids and a timestamp are stored.
+    - Changing or deleting a garden needs its private edit key in the `X-Garden-Edit-Token` header.
+      Reading a garden never needs it (that is what makes the share link view-only).
+    - Errors use the backend's existing `ErrorResponse` format: `{ code, message, path }`.
+    - Import this file into Apifox or Swagger Editor to try the requests or generate stubs.
+
+servers:
+  - url: http://localhost:8080
+    description: Local Spring Boot
+  - url: https://54.79.19.80.nip.io
+    description: Team backend on AWS EC2 (once deployed)
+
+tags:
+  - name: Gardens
+    description: Anonymous saved gardens (share link + private edit link)
+  - name: Plant passports
+    description: Plant details the garden page needs (risk, flowering, spread, tips)
+
+paths:
+  /api/v1/gardens:
+    post:
+      tags: [Gardens]
+      operationId: createGarden
+      summary: Create a saved garden ("Get a private link", AC 4.1)
+      description: |
+        Creates a garden with a new random UUID v4 and a new edit key.
+        The edit key is returned **only in this response**; the server stores just its SHA-256 hash.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/GardenRequest' }
+            example: { plantIds: [3, 7, 120] }
+      responses:
+        '201':
+          description: Garden created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CreatedGardenResponse' }
+              example:
+                gardenId: e1f80156-ccb1-44c4-9961-89b9904c39ae
+                plantIds: [3, 7, 120]
+                updatedAt: '2026-09-29T11:55:39'
+                editToken: q1v6mB0kq7yJ3d1tL0Hn9o0B6zQy1c2w8oYxQbq3m9E
+        '400': { $ref: '#/components/responses/InvalidGardenPlants' }
+
+  /api/v1/gardens/{gardenId}:
+    parameters:
+      - $ref: '#/components/parameters/GardenId'
+    get:
+      tags: [Gardens]
+      operationId: getGarden
+      summary: Read a garden (share link and edit link, US 5 and US 6)
+      description: Never returns the edit key. Plant ids are in the order the owner added them.
+      responses:
+        '200':
+          description: The garden
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/GardenResponse' }
+              example:
+                gardenId: e1f80156-ccb1-44c4-9961-89b9904c39ae
+                plantIds: [3, 7, 120]
+                updatedAt: '2026-09-29T11:55:39'
+        '404': { $ref: '#/components/responses/GardenNotFound' }
+    put:
+      tags: [Gardens]
+      operationId: updateGarden
+      summary: Replace the garden's plant list (auto-save, AC 4.2 / Clear, AC 8.1)
+      description: |
+        Replaces the whole list (it does not append). An empty list is allowed: that is what
+        "Clear my garden" sends, and the garden and both links stay valid.
+        Every successful save resets the 90-day expiry.
+      parameters:
+        - $ref: '#/components/parameters/EditToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/GardenRequest' }
+            example: { plantIds: [3, 120] }
+      responses:
+        '200':
+          description: Saved
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/GardenResponse' }
+        '400': { $ref: '#/components/responses/InvalidGardenPlants' }
+        '403': { $ref: '#/components/responses/GardenEditForbidden' }
+        '404': { $ref: '#/components/responses/GardenNotFound' }
+    delete:
+      tags: [Gardens]
+      operationId: deleteGarden
+      summary: Delete the saved garden (AC 8.2)
+      description: After this, GET on the same id returns 404, so both links stop working.
+      parameters:
+        - $ref: '#/components/parameters/EditToken'
+      responses:
+        '204': { description: Deleted }
+        '403': { $ref: '#/components/responses/GardenEditForbidden' }
+        '404': { $ref: '#/components/responses/GardenNotFound' }
+
+  /api/v1/plants/passports:
+    get:
+      tags: [Plant passports]
+      operationId: getPassports
+      summary: Details for many plants at once (garden cards, check-up, tips)
+      description: |
+        The garden page calls this once with all of its plant ids.
+        Unknown ids are left out (no error). Only the first 100 ids are used.
+        Keys of the returned object are plant ids as strings.
+      parameters:
+        - name: ids
+          in: query
+          required: true
+          description: Comma-separated plant ids (species_data.id)
+          schema: { type: string, example: '3,7,120' }
+      responses:
+        '200':
+          description: Map of plant id → passport
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: { $ref: '#/components/schemas/PlantPassport' }
+        '400':
+          description: ids is not a comma-separated list of numbers
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+              example: { code: INVALID_REQUEST, message: The request is invalid., path: /api/v1/plants/passports }
+
+  /api/v1/plants/{plantId}/passport:
+    get:
+      tags: [Plant passports]
+      operationId: getPassport
+      summary: Details for one plant
+      parameters:
+        - name: plantId
+          in: path
+          required: true
+          schema: { type: integer, format: int64, minimum: 1 }
+      responses:
+        '200':
+          description: The passport
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PlantPassport' }
+        '404':
+          description: Plant not found
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+              example: { code: PLANT_NOT_FOUND, message: Plant not found., path: /api/v1/plants/99999/passport }
+
+components:
+  parameters:
+    GardenId:
+      name: gardenId
+      in: path
+      required: true
+      description: Random UUID v4 (lower case). Anything else returns 404.
+      schema: { type: string, format: uuid, example: e1f80156-ccb1-44c4-9961-89b9904c39ae }
+    EditToken:
+      name: X-Garden-Edit-Token
+      in: header
+      required: true
+      description: The private edit key returned by POST /gardens.
+      schema: { type: string, example: q1v6mB0kq7yJ3d1tL0Hn9o0B6zQy1c2w8oYxQbq3m9E }
+
+  responses:
+    GardenNotFound:
+      description: Garden does not exist, was deleted, is older than 90 days, or the id is not a UUID v4
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+          example:
+            code: GARDEN_NOT_FOUND
+            message: This garden link is no longer available.
+            path: /api/v1/gardens/e1f80156-ccb1-44c4-9961-89b9904c39ae
+    GardenEditForbidden:
+      description: X-Garden-Edit-Token is missing or wrong
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+          example:
+            code: GARDEN_EDIT_FORBIDDEN
+            message: You can view this garden but not change it.
+            path: /api/v1/gardens/e1f80156-ccb1-44c4-9961-89b9904c39ae
+    InvalidGardenPlants:
+      description: plantIds missing, has more than 100 items, or contains an id that is not positive or does not exist
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+          example:
+            code: INVALID_GARDEN_PLANTS
+            message: plantIds must contain up to 100 existing plant IDs.
+            path: /api/v1/gardens
+
+  schemas:
+    GardenRequest:
+      type: object
+      required: [plantIds]
+      properties:
+        plantIds:
+          type: array
+          maxItems: 100
+          description: Positive species_data ids. Duplicates are removed (first position kept). Order is kept.
+          items: { type: integer, format: int64, minimum: 1 }
+
+    GardenResponse:
+      type: object
+      required: [gardenId, plantIds, updatedAt]
+      properties:
+        gardenId: { type: string, format: uuid }
+        plantIds:
+          type: array
+          items: { type: integer, format: int64 }
+        updatedAt:
+          type: string
+          description: Last change, ISO-8601 local date-time (UTC), e.g. 2026-09-29T11:55:39
+          example: '2026-09-29T11:55:39'
+
+    CreatedGardenResponse:
+      allOf:
+        - $ref: '#/components/schemas/GardenResponse'
+        - type: object
+          required: [editToken]
+          properties:
+            editToken:
+              type: string
+              description: Private edit key (43 URL-safe characters). Returned only once.
+
+    ErrorResponse:
+      type: object
+      description: Same shape as the backend's existing com.plantky.common.model.ErrorResponse
+      properties:
+        code: { type: string, example: GARDEN_NOT_FOUND }
+        message: { type: string }
+        path: { type: string }
+
+    PlantPassport:
+      type: object
+      description: |
+        Field names are snake_case on purpose, so the existing Vue garden page can be reused
+        unchanged (annotate the Java class with @JsonNaming(SnakeCaseStrategy.class)).
+        Values come from the Iteration 3 pipeline output (output_i3.csv).
+      required: [plant_id, scientific_name, recommendation, traits, flowering, spread, local_records, evidence]
+      properties:
+        plant_id: { type: integer, format: int64, example: 3 }
+        scientific_name: { type: string, example: Acacia baileyana }
+        common_name: { type: string, nullable: true, example: Cootamundra Wattle }
+        recommendation:
+          type: string
+          enum: [Reconsider Planting, Use Caution, Lower Concern, Not Assessed]
+        origin:
+          type: string
+          nullable: true
+          enum: [native, introduced, null]
+        establishment: { type: string, nullable: true, example: naturalised }
+        plant_type: { type: string, nullable: true, example: Shrub }
+        traits:
+          type: object
+          properties:
+            growth_form: { type: string, nullable: true, example: shrub tree }
+            woodiness: { type: string, nullable: true, example: woody }
+            life_history: { type: string, nullable: true, example: perennial }
+            height_min_m: { type: number, nullable: true, example: 3 }
+            height_max_m: { type: number, nullable: true, example: 10 }
+        flowering:
+          type: object
+          properties:
+            months:
+              type: array
+              nullable: true
+              minItems: 12
+              maxItems: 12
+              description: Jan..Dec. null when there is no flowering data.
+              items: { type: boolean }
+            label: { type: string, nullable: true, example: Jul–Sep }
+            sources: { type: integer, example: 2 }
+            split_pattern: { type: boolean, example: false }
+        spread:
+          type: object
+          properties:
+            resprouting: { type: string, nullable: true, example: resprouts }
+            vegetative_spread: { type: string, nullable: true, example: vegetative }
+            dispersal: { type: string, nullable: true, example: ants / animals }
+            seedbank_longevity: { type: string, nullable: true, example: persistent }
+        wet_soil_tolerance: { type: string, nullable: true }
+        local_records:
+          type: object
+          properties:
+            vba100_count: { type: integer, example: 2 }
+            vba100_latest_year: { type: integer, nullable: true, example: 2000 }
+            ala_count: { type: integer, example: 12 }
+            ala_latest_date: { type: string, nullable: true, example: '2026-04-25' }
+        griis_listed_introduced: { type: boolean }
+        evidence:
+          type: object
+          properties:
+            strength: { type: string, enum: [Strong, Moderate, Limited] }
+            available:
+              type: array
+              items: { type: string, enum: [rating, origin, local_records, traits, flowering, griis] }
+            missing:
+              type: array
+              items: { type: string, enum: [rating, origin, local_records, traits, flowering] }
+        vicflora_url: { type: string, nullable: true }
